@@ -356,15 +356,15 @@ def _compute_thonny_profiles_dir():
     elif running_in_virtual_environment() and not is_private_python(sys.executable):
         return os.path.join(sys.prefix, ".thonny")
     elif sys.platform == "win32":
-        return os.path.join(get_roaming_appdata_dir(), "Thonny")
+        return os.path.join(get_roaming_appdata_dir(), "Softsembly")
     elif sys.platform == "darwin":
-        return os.path.expanduser("~/Library/Thonny")
+        return os.path.expanduser("~/Library/Softsembly")
     else:
         # https://specifications.freedesktop.org/basedir-spec/latest/ar01s02.html
         data_home = os.environ.get(
             "XDG_CONFIG_HOME", os.path.expanduser(os.path.join("~", ".config"))
         )
-        return os.path.join(data_home, "Thonny")
+        return os.path.join(data_home, "Softsembly")
 
 
 def _read_configured_debug_mode():

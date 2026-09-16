@@ -86,6 +86,15 @@ class BasedpyrightProxy(LanguageServerProxy):
 
     def _create_server_process(self) -> subprocess.Popen[bytes]:
         server_path = shutil.which("basedpyright-langserver")
+        if server_path is None and os.name == "nt":
+            # Packaged Softsembly keeps helper executables next to its private Python
+            # under Scripts, which is not guaranteed to be on the user's PATH.
+            bundled_server = os.path.join(
+                os.path.dirname(sys.executable), "Scripts", "basedpyright-langserver.exe"
+            )
+            if os.path.isfile(bundled_server):
+                server_path = bundled_server
+
         if server_path is None:
             raise UserError("Can't find basedpyright-langserver")
 

@@ -29,11 +29,12 @@ def run() -> int:
 
     import runpy
 
-    if sys.executable.endswith("thonny.exe"):
-        # otherwise some library may try to run its subprocess with thonny.exe
+    if sys.executable.lower().endswith(("thonny.exe", "softsembly.exe")):
+        # otherwise some library may try to run its subprocess with the GUI launcher
         # NB! Must be pythonw.exe not python.exe, otherwise Runner thinks console
         # is already allocated.
-        sys.executable = sys.executable[: -len("thonny.exe")] + "pythonw.exe"
+        launcher_name = os.path.basename(sys.executable)
+        sys.executable = sys.executable[: -len(launcher_name)] + "pythonw.exe"
 
     _set_dpi_aware()
 
