@@ -20,8 +20,6 @@ from thonny.common import (
     ToplevelCommand,
     is_private_python,
     normpath_with_actual_case,
-    running_in_virtual_environment,
-    try_get_base_executable,
 )
 from thonny.languages import tr
 from thonny.misc_utils import running_on_mac_os, running_on_windows
@@ -203,12 +201,15 @@ class LocalCPythonProxy(SubprocessProxy):
     @classmethod
     def get_switcher_configuration_label(cls, conf: Dict[str, Any]) -> str:
         exe = conf[f"{cls.backend_name}.executable"]
-        if is_private_python(exe) and exe == get_default_cpython_executable_for_backend():
-            exe_label = tr("Softsembly's Python")
-        else:
-            exe_label = exe
-        # •✶♦▸
-        return cls.backend_description + "  •  " + exe_label
+        default_exe = os.path.normcase(os.path.normpath(get_default_cpython_executable_for_backend()))
+        current_exe = os.path.normcase(os.path.normpath(exe))
+        if current_exe == default_exe:
+            # Keep the normal beginner status bar reassuring and non-technical.
+            return tr("Softsembly Python")
+
+        # Advanced users can still select another interpreter and see exactly
+        # which executable is active.
+        return tr("Python") + "  •  " + exe
 
     @classmethod
     def get_switcher_entries(cls) -> List[Tuple[Dict[str, Any], str, str]]:
@@ -366,16 +367,13 @@ class LocalCPythonConfigurationPage(TabbedBackendDetailsConfigurationPage):
 
 
 def get_default_cpython_executable_for_backend() -> str:
-    if is_private_python(sys.executable) and running_in_virtual_environment():
-        # Private venv. Make an exception and use base Python for default backend.
-        default_path = try_get_base_executable(sys.executable)
-        if default_path is None:
-            logger.warning("Could not find base executable of %s", sys.executable)
-            default_path = sys.executable
-    else:
-        default_path = sys.executable.replace("pythonw.exe", "python.exe")
+    # Softsembly is intentionally batteries-included. The Python runtime that
+    # launches Softsembly is also the default runtime for user programs. In
+    # development this is the active venv; in packaged builds this is the
+    # bundled Python. A beginner therefore never needs a separate Python setup.
+    default_path = sys.executable.replace("pythonw.exe", "python.exe")
 
-    # In macOS bundle the path may have ..-s
+    # In macOS bundles the path may contain .. components.
     default_path = os.path.normpath(default_path)
 
     """ # Too confusing:

@@ -21,7 +21,7 @@ def load_plugin():
     wb.add_backend(
         "LocalCPython",
         LocalCPythonProxy,
-        tr("Local Python 3"),
+        tr("Softsembly Python"),
         LocalCPythonConfigurationPage,
         "02",
     )

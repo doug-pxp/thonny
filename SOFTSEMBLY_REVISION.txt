@@ -1,12 +1,9 @@
-Softsembly v0.3f — UI Revert + Toolbar Sizing
+Softsembly v0.4 — Zero-Setup Python
 
 Changes:
-- Reverts the v0.3e modern UI restyle back to the previous Softsembly dark design.
-- Reverts toolbar artwork to the previous/original icon set.
-- Keeps the v0.3d single-button click/hitbox fix.
-- Keeps the slightly larger toolbar button padding/spacing introduced in v0.3e.
-- No workflow, debugger, menu, file browser, or runtime behavior changes.
-
-Note:
-The soft-* icon files added by v0.3e may remain in thonny/res after applying this patch,
-but the restored theme no longer references them. They are harmless unused files.
+- Softsembly's own runtime is the default Python for user programs.
+- Fresh users do not need to select or install a Python interpreter.
+- First-run screen is simplified to language selection plus a ready message.
+- Status bar shows “Softsembly Python” instead of a technical interpreter path when using the default runtime.
+- Advanced interpreter selection remains available in Options.
+- No toolbar, debugger, menu, file-browser, lesson, cartridge, package-name, or packaging redesign in this revision.

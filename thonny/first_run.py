@@ -107,9 +107,18 @@ class FirstRunWindow(tk.Tk):
             1, "Language:", self.language_variable, list(languages.LANGUAGES_DICT.values())
         )
 
+        # Softsembly has one beginner-friendly default experience. Advanced
+        # configuration remains available later under Tools -> Options.
         self.mode_variable = tk.StringVar(value=STD_MODE_TEXT)
-        self.add_combo(
-            2, "UI mode:", self.mode_variable, [STD_MODE_TEXT, SIMPLE_MODE_TEXT, RPI_MODE_TEXT]
+
+        ready_label = ttk.Label(
+            self.main_frame,
+            text="Python is ready. No setup required.",
+            foreground=green,
+        )
+        ready_label.grid(
+            row=2, column=2, columnspan=2,
+            padx=(0, self.padx), pady=(self.pady * 0.5, 0), sticky="w"
         )
 
         ok_button = ttk.Button(self.main_frame, text="Let's go!", command=self.on_ok, style="Softsembly.TButton")
