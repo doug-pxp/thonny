@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -81,7 +81,18 @@ if ($LASTEXITCODE -gt 7) { throw "robocopy failed with exit code $LASTEXITCODE" 
 
 $Runner = Join-Path $ScriptDir 'ThonnyRunner314\x64\Release\thonny.exe'
 if (-not (Test-Path $Runner)) { throw "Bundled GUI runner was not found: $Runner" }
-Copy-Item $Runner (Join-Path $BuildDir 'softsembly.exe') -Force
+$SoftsemblyExe = Join-Path $BuildDir 'softsembly.exe'
+Copy-Item $Runner $SoftsemblyExe -Force
+
+# The upstream runner is a prebuilt Thonny executable. Renaming the file does
+# not change its embedded Windows icon, so patch the executable resource with
+# Softsembly's icon before it is packaged. This keeps taskbar / Start menu /
+# Explorer identity consistent with the installer artwork.
+$IconPatcher = Join-Path $ScriptDir 'patch_exe_icon.py'
+$SoftsemblyIcon = Join-Path $ScriptDir 'softsembly.ico'
+& (Join-Path $PythonHome 'python.exe') $IconPatcher $SoftsemblyExe $SoftsemblyIcon
+if ($LASTEXITCODE) { throw 'Could not embed the Softsembly icon into softsembly.exe.' }
+
 Copy-Item (Join-Path $ScriptDir 'thonny_python.ini') $BuildDir -Force
 
 $BundledPython = Join-Path $BuildDir 'python.exe'
