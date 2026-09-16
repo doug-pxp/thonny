@@ -364,7 +364,7 @@ class Workbench(tk.Tk):
         if bad_home_msg:
             messagebox.showwarning(
                 "Problems with home directory",
-                bad_home_msg + "\nThis may cause problems for Thonny.",
+                bad_home_msg + "\nThis may cause problems for Softsembly.",
                 master=self,
             )
 
@@ -382,7 +382,7 @@ class Workbench(tk.Tk):
         self.set_default("general.ui_mode", "simple" if running_on_rpi() else "regular")
         self.set_default("general.debug_mode", False)
         self.set_default("general.disable_notification_sound", False)
-        self.set_default("general.scaling", "default")
+        self.set_default("general.scaling", "1.25")
         self.set_default("general.language", languages.BASE_LANGUAGE_CODE)
         self.set_default("general.font_scaling_mode", "default")
         self.set_default("general.environment", [])
@@ -539,7 +539,7 @@ class Workbench(tk.Tk):
         languages.set_language(self.get_option("general.language"))
 
     def _init_window(self) -> None:
-        self.title("Thonny")
+        self.title("Softsembly")
 
         self.set_default("layout.zoomed", False)
         self.set_default("layout.top", 50)
@@ -922,24 +922,13 @@ class Workbench(tk.Tk):
             self.add_command(
                 "quit",
                 "help",
-                tr("Exit Thonny"),
+                tr("Exit Softsembly"),
                 self._on_close,
                 image="quit",
                 caption=tr("Quit"),
                 include_in_toolbar=True,
                 group=101,
             )
-
-        self.add_command(
-            "SupportUkraine",
-            "help",
-            tr("Support Ukraine"),
-            self._support_ukraine,
-            image="Ukraine",
-            caption=tr("Support"),
-            include_in_toolbar=True,
-            group=101,
-        )
 
         if thonny.in_debug_mode():
             self.bind_all("<Control-Shift-Alt-D>", self._print_state_for_debugging, True)
@@ -1867,7 +1856,7 @@ class Workbench(tk.Tk):
                 tr("Regular mode"),
                 tr(
                     "Configuration has been updated. "
-                    + "Restart Thonny to start working in regular mode.\n\n"
+                    + "Restart Softsembly to start working in regular mode.\n\n"
                     + "(See 'Tools → Options → General' if you change your mind later.)"
                 ),
                 master=self,
@@ -2434,6 +2423,19 @@ class Workbench(tk.Tk):
                 assert orig_size > 0
                 f.configure(size=int(orig_size * self._scaling_factor / MAC_SCALING_MODIFIER))
 
+        # Keep the application chrome comfortably readable on Windows. This is
+        # intentionally limited to built-in UI fonts; editor and shell font sizes
+        # remain governed by their existing preferences.
+        if running_on_windows():
+            for name, minimum in [("TkDefaultFont", 12), ("TkMenuFont", 13), ("TkTextFont", 12)]:
+                try:
+                    font = tk_font.nametofont(name)
+                    current = int(font.cget("size"))
+                    if current > 0 and current < minimum:
+                        font.configure(size=minimum)
+                except tk.TclError:
+                    pass
+
     def update_fonts(self) -> None:
         editor_font_size = self._guard_font_size(self.get_option("view.editor_font_size"))
         editor_font_family = self.get_option("view.editor_font_family")
@@ -2546,14 +2548,24 @@ class Workbench(tk.Tk):
         else:
             image_spec = image
 
-        button = CustomToolbutton(
+        # Use a real ttk button for the main toolbar. This keeps the icon and the
+        # clickable surface as one widget, so clicking the center of the icon is
+        # identical to clicking its surrounding hit area. The previous
+        # CustomToolbutton uses a nested Label, which can produce confusing
+        # hit-testing / hover behaviour under Windows DPI scaling.
+        button = ttk.Button(
             group_frame,
             image=image_spec,
             state=tk.NORMAL,
             text=caption,
             compound="top" if self.in_simple_mode() else None,
-            pad=ems_to_pixels(0.5) if self.in_simple_mode() else ems_to_pixels(0.25),
+            padding=(
+                ems_to_pixels(0.5) if self.in_simple_mode() else ems_to_pixels(0.38),
+                ems_to_pixels(0.5) if self.in_simple_mode() else ems_to_pixels(0.38),
+            ),
             width=button_width,
+            style="Toolbutton",
+            takefocus=False,
         )
 
         def toolbar_handler(*args):
@@ -2995,9 +3007,9 @@ class Workbench(tk.Tk):
     def update_title(self, event=None) -> None:
         editor = self.get_editor_notebook().get_current_editor()
         if self._is_portable:
-            title_text = "Portable Thonny"
+            title_text = "Portable Softsembly"
         else:
-            title_text = "Thonny"
+            title_text = "Softsembly"
 
         profile = self.get_profile()
         if profile != "default":

@@ -204,7 +204,7 @@ class LocalCPythonProxy(SubprocessProxy):
     def get_switcher_configuration_label(cls, conf: Dict[str, Any]) -> str:
         exe = conf[f"{cls.backend_name}.executable"]
         if is_private_python(exe) and exe == get_default_cpython_executable_for_backend():
-            exe_label = tr("Thonny's Python")
+            exe_label = tr("Softsembly's Python")
         else:
             exe_label = exe
         # •✶♦▸
@@ -292,7 +292,7 @@ class LocalCPythonConfigurationPage(TabbedBackendDetailsConfigurationPage):
         self._select_button.grid(row=1, column=2, sticky="e", padx=(10, 0))
         self.executable_page.columnconfigure(1, weight=1)
 
-        extra_text = tr("NB! Thonny only supports Python %s and later") % SUPPORTED_VERSIONS[0]
+        extra_text = tr("NB! Softsembly only supports Python %s and later") % SUPPORTED_VERSIONS[0]
         extra_label = ttk.Label(self.executable_page, text=extra_text)
         extra_label.grid(row=2, column=1, columnspan=2, pady=10, sticky="w")
 
@@ -300,7 +300,7 @@ class LocalCPythonConfigurationPage(TabbedBackendDetailsConfigurationPage):
             self.executable_page,
             text=tr(
                 "Note that you can select an existing virtual environment also via "
-                "right-click menu in Thonny's file browser."
+                "right-click menu in Softsembly's file browser."
             ),
         )
         file_browser_hint.grid(row=3, column=1, columnspan=2, pady=10, sticky="w")

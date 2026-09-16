@@ -749,7 +749,7 @@ class BaseFileBrowser(ttk.Frame):
                 )
             else:
                 self.menu.add_command(
-                    label=tr("Open in Thonny"), command=lambda: self.open_file(selected_path)
+                    label=tr("Open in Softsembly"), command=lambda: self.open_file(selected_path)
                 )
 
             if self.is_active_browser():
@@ -781,7 +781,7 @@ class BaseFileBrowser(ttk.Frame):
 
     def open_extension_dialog(self, extension: str) -> None:
         system_choice = tr("Open in system default app")
-        thonny_choice = tr("Open in Thonny's text editor")
+        thonny_choice = tr("Open in Softsembly's text editor")
 
         current_index = (
             1 if get_workbench().get_option(get_file_handler_conf_key(extension)) == "thonny" else 0
@@ -790,7 +790,7 @@ class BaseFileBrowser(ttk.Frame):
         choice = ask_one_from_choices(
             title=tr("Configure %s files") % extension,
             question=tr(
-                "What to do with a %s file when you double-click it in Thonny's file browser?"
+                "What to do with a %s file when you double-click it in Softsembly's file browser?"
             )
             % extension,
             choices=[system_choice, thonny_choice],
@@ -1411,7 +1411,7 @@ class BaseRemoteFileBrowser(BaseFileBrowser):
             tr("Opening remote files in external app is not supported.")
             + "\n\n"
             + tr(
-                "If it is a text file, then you can configure it to open in Thonny "
+                "If it is a text file, then you can configure it to open in Softsembly "
                 "by right-clicking it and selecting 'Configure ... files'."
             )
             + "\n\n"

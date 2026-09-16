@@ -1,0 +1,13 @@
+Softsembly third-party notices
+==============================
+
+Softsembly is derived from the open-source Thonny IDE.
+
+Thonny
+-----
+Copyright (c) Aivar Annamaa and contributors
+Licensed under the MIT License.
+Original project: https://github.com/thonny/thonny
+
+The original MIT license is preserved in LICENSE.txt. Softsembly's use and
+modification of Thonny are permitted under that license.

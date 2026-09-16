@@ -1097,8 +1097,8 @@ class BackendProxy(ABC):
         if "thonny" in dist_info.name.lower():
             return [
                 tr(
-                    "Looks like you are installing a Thonny-related package.\n"
-                    + "If you meant to install a Thonny plugin, then you should\n"
+                    "Looks like you are installing a Softsembly-related package.\n"
+                    + "If you meant to install a Softsembly plugin, then you should\n"
                     + "choose 'Tools → Manage plugins...' instead\n"
                     + "\n"
                     + "Are you sure you want to install %s for the back-end?"

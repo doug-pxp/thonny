@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
     if not sys.version_info > (3, 9):
         print(
-            "This version of Thonny only supports Python 3.9 and later.\n"
+            "This version of Softsembly only supports Python 3.9 and later.\n"
             + "Choose another interpreter from Tools => Options => Interpreter",
             file=sys.stderr,
         )

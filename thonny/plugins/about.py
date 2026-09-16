@@ -21,19 +21,28 @@ class AboutDialog(CommonDialogEx):
     def __init__(self, master):
         super().__init__(master)
 
-        self.title(tr("About Thonny"))
+        self.title(tr("About Softsembly"))
         self.resizable(height=tk.FALSE, width=tk.FALSE)
 
         default_heading_font = tkinter.font.nametofont("TkHeadingFont")
         heading_font = default_heading_font.copy()
         heading_font.configure(size=int(default_heading_font["size"] * 1.7), weight="bold")
         heading_label = ttk.Label(
-            self.main_frame, text="Thonny " + thonny.get_version(), font=heading_font
+            self.main_frame, text="Softsembly " + thonny.get_version(), font=heading_font
         )
         heading_label.grid(pady=(self.get_large_padding(), self.get_small_padding()))
 
-        url_label = create_url_label(self.main_frame, "https://thonny.org", justify=tk.CENTER)
-        url_label.grid()
+        brand_label = ttk.Label(
+            self.main_frame,
+            text="by ProgrammingXP\nBuilt on the open-source Thonny IDE",
+            justify=tk.CENTER,
+        )
+        brand_label.grid()
+
+        url_label = create_url_label(
+            self.main_frame, "https://github.com/thonny/thonny", "Original Thonny project", justify=tk.CENTER
+        )
+        url_label.grid(pady=(self.get_small_padding(), 0))
 
         if sys.platform == "linux":
             try:
@@ -79,12 +88,8 @@ class AboutDialog(CommonDialogEx):
             self.main_frame,
             "https://github.com/thonny/thonny/blob/master/CREDITS.rst",
             tr(
-                "Made in\n"
-                + "University of Tartu, Estonia,\n"
-                + "with the help from\n"
-                + "open-source community,\n"
-                + "Raspberry Pi Foundation\n"
-                + "and Cybernetica AS"
+                "Thonny upstream credits\n"
+                + "Aivar Annamaa and the open-source contributors"
             ),
             justify=tk.CENTER,
         )
@@ -150,7 +155,7 @@ def load_plugin() -> None:
         lambda: open_url("https://github.com/thonny/thonny/issues"),
         group=60,
     )
-    get_workbench().add_command("about", "help", tr("About Thonny"), open_about, group=61)
+    get_workbench().add_command("about", "help", tr("About Softsembly"), open_about, group=61)
 
     # For Mac
     get_workbench().createcommand("tkAboutDialog", open_about)

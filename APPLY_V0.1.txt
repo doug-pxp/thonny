@@ -1,0 +1,6 @@
+Softsembly v0.1 Patch
+
+Extract this ZIP directly over your existing C:\Users\dougl\softsembly repo,
+allowing files to be replaced. Your .venv and .git folder stay in place.
+
+Then activate .venv and run: python -m thonny

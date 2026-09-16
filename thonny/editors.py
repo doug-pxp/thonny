@@ -426,7 +426,7 @@ class Editor(BaseEditor):
                 messagebox.showerror(
                     tr("File is open"),
                     tr(
-                        "This file is already open in Thonny.\n\n"
+                        "This file is already open in Softsembly.\n\n"
                         "If you want to save with this name,\n"
                         "close the existing editor first!"
                     ),

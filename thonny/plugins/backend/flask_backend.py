@@ -43,7 +43,7 @@ def augment_source(source, cmd):
 if "{app_name}" in globals():
     # Conservative options for minimum technical risks.
     # Users who need more control should call run explicitly.
-    print(" # Running the app with options chosen by Thonny. See Help for details.")
+    print(" # Running the app with options chosen by Softsembly. See Help for details.")
     {app_name}.run(threaded=False, debug=False, use_reloader=False)
 """.format(app_name=var_name)
 

@@ -81,6 +81,11 @@ class LanguageServerProxy(ABC):
         self._notification_handlers: Dict[str, List[Callable]] = {}
         self._diagnostics: Dict[str, PublishDiagnosticsParams] = {}
         self._unprocessed_messages_from_server: Queue[Dict] = Queue()
+        # LSP notifications can be produced while the language server is still
+        # completing its initialize handshake (for example when the Python
+        # backend changes state as a program starts). Queue them instead of
+        # surfacing an internal-error dialog to the user.
+        self._notifications_before_initialization: List[typing.Tuple[str, Any]] = []
 
         self.server_capabilities: Optional[lsp_types.ServerCapabilities] = None
         self.server_info: Optional[lsp_types.ServerCapabilities] = None
@@ -117,6 +122,13 @@ class LanguageServerProxy(ABC):
         logger.info("Server capabilities: %s", self.server_capabilities)
 
         self.notify_initialized(InitializedParams())
+
+        # Deliver any document/workspace notifications which arrived during
+        # startup now that the server is ready to accept them.
+        pending_notifications = self._notifications_before_initialization
+        self._notifications_before_initialization = []
+        for method, params in pending_notifications:
+            self._send_notification(method, params)
 
         get_workbench().event_generate("LanguageServerInitialized", self)
 
@@ -1084,7 +1096,15 @@ class LanguageServerProxy(ABC):
         )
 
     def _send_notification(self, method: str, params: Any) -> None:
-        self._check_initialized()
+        # A healthy language server may need a moment to finish its initialize
+        # handshake. Notifications are fire-and-forget, so queueing them here is
+        # safer than turning this normal startup race into a customer-facing
+        # "Server hasn't been initialized yet" error dialog.
+        if not self.is_initialized():
+            if not self._server_process_alive():
+                raise RuntimeError("Server has been closed")
+            self._notifications_before_initialization.append((method, params))
+            return
 
         self._send_json_rpc_message(
             {"jsonrpc": "2.0", "method": method, "params": _convert_to_json_value(params)}

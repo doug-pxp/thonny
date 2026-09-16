@@ -1,0 +1,12 @@
+Softsembly v0.3f — UI Revert + Toolbar Sizing
+
+Changes:
+- Reverts the v0.3e modern UI restyle back to the previous Softsembly dark design.
+- Reverts toolbar artwork to the previous/original icon set.
+- Keeps the v0.3d single-button click/hitbox fix.
+- Keeps the slightly larger toolbar button padding/spacing introduced in v0.3e.
+- No workflow, debugger, menu, file browser, or runtime behavior changes.
+
+Note:
+The soft-* icon files added by v0.3e may remain in thonny/res after applying this patch,
+but the restored theme no longer references them. They are harmless unused files.

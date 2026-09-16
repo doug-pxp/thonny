@@ -513,7 +513,7 @@ def show_command_not_available_in_flatpak_message():
 
     messagebox.showinfo(
         tr("Command not available"),
-        tr("This command is not available if Thonny is run via Flatpak"),
+        tr("This command is not available if Softsembly is run via Flatpak"),
         parent=get_workbench(),
     )
 

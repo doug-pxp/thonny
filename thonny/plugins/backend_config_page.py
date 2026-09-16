@@ -89,7 +89,7 @@ class BackendConfigurationPage(ConfigurationPage):
         self._combo_variable = create_string_var(current_backend_desc)
 
         label = ttk.Label(
-            self, text=tr("Which kind of interpreter should Thonny use for running your code?")
+            self, text=tr("Which kind of interpreter should Softsembly use for running your code?")
         )
         label.grid(row=0, column=0, columnspan=2, sticky=tk.W)
 

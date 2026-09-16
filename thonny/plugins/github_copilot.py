@@ -40,12 +40,12 @@ class GithubAccessTokenDialog(WorkDialog):
         super().__init__(master, autostart=True)
 
     def get_instructions(self) -> Optional[str]:
-        return "Visit following URL to connect Thonny to your GitHub Copilot account:"
+        return "Visit following URL to connect Softsembly to your GitHub Copilot account:"
 
     def populate_main_frame(self):
         visit_label = ttk.Label(
             self.main_frame,
-            text=f"Visit following URL to connect Thonny to your GitHub Copilot account:",
+            text=f"Visit following URL to connect Softsembly to your GitHub Copilot account:",
         )
         visit_label.grid(row=1, column=1, columnspan=2)
 
