@@ -723,7 +723,21 @@ def version_str_to_tuple_of_ints(s: str) -> Tuple[int]:
     return tuple([int(part) for part in parts if part.isnumeric()])
 
 
+def _looks_like_windows_drive_path(value: str) -> bool:
+    return (
+        len(value) >= 3
+        and value[0].isalpha()
+        and value[1] == ":"
+        and value[2] in ("\\", "/")
+    )
+
+
 def uri_to_target_path(uri: str) -> str:
+    # A raw Windows path such as D:\_PXP\project_files is not a URI.
+    # urllib would otherwise interpret the drive letter ("d") as a URI scheme.
+    if _looks_like_windows_drive_path(uri):
+        return uri.replace("/", "\\")
+
     parts = urllib.parse.urlsplit(uri)
     if parts.scheme == UNTITLED_URI_SCHEME:
         raise ValueError("Can't get path of untitled uri")
@@ -760,7 +774,7 @@ def is_local_path(s: str) -> bool:
     return (
         not is_legacy_remote_filename(s)
         and not s.startswith("<")
-        and (s.startswith("/") or s[1:3] == ":\\")
+        and (s.startswith("/") or s.startswith("\\\\") or _looks_like_windows_drive_path(s))
     )
 
 

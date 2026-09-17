@@ -13,3 +13,4 @@ dbus-next==0.2.*; sys_platform == "linux"
 adafruit_board_toolkit==1.1.*; sys_platform == "win32" or sys_platform == "darwin"
 
 
+tkinterdnd2>=0.6.3

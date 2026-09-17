@@ -237,6 +237,7 @@ class Workbench(tk.Tk):
 
         self._init_containers()
         assert self._editor_notebook is not None
+        self._init_external_file_drop()
 
         self._init_program_arguments_frame()
         self._init_regular_mode_link()  # TODO:
@@ -2005,6 +2006,73 @@ class Workbench(tk.Tk):
             self._view_records[view_id]["instance"] = view
 
         return self._view_records[view_id]["instance"]
+
+    def _init_external_file_drop(self) -> None:
+        """Enable native Finder / Explorer drops for Python source files."""
+        self._external_file_drop_enabled = False
+        try:
+            from tkinterdnd2 import COPY, DND_FILES, REFUSE_DROP, TkinterDnD
+        except ImportError:
+            logger.info("tkinterdnd2 is not installed; external file drop is disabled")
+            return
+
+        try:
+            # Importing tkinterdnd2 adds the DnD methods to tkinter BaseWidget.
+            # We only need to load TkDND into this Workbench's Tcl interpreter.
+            TkinterDnD._require(self)
+            self._external_dnd_copy = COPY
+            self._external_dnd_files = DND_FILES
+            self._external_dnd_refuse = REFUSE_DROP
+            self._external_file_drop_enabled = True
+
+            # The notebook accepts drops over tabs / blank notebook space.
+            self.register_external_file_drop_target(self.get_editor_notebook())
+        except Exception:
+            # Drag-and-drop is a convenience feature. Never prevent Softsembly
+            # from launching if TkDND is unavailable on a particular machine.
+            logger.exception("Could not initialize external file drag-and-drop")
+            self._external_file_drop_enabled = False
+
+    def register_external_file_drop_target(self, target: tk.Widget) -> None:
+        """Register a widget as a target for Python files dragged from the OS."""
+        if not getattr(self, "_external_file_drop_enabled", False):
+            return
+
+        try:
+            target.drop_target_register(self._external_dnd_files)
+            target.dnd_bind("<<Drop>>", self._handle_external_file_drop)
+        except Exception:
+            logger.exception("Could not register external file drop target %r", target)
+
+    def _handle_external_file_drop(self, event):
+        opened = False
+        try:
+            dropped_items = self.tk.splitlist(event.data)
+        except Exception:
+            dropped_items = (event.data,)
+
+        for item in dropped_items:
+            path = str(item).strip()
+            if path.startswith("file:"):
+                try:
+                    from thonny.misc_utils import uri_to_target_path
+
+                    path = uri_to_target_path(path)
+                except Exception:
+                    logger.exception("Could not decode dropped file URI %r", path)
+                    continue
+
+            # Keep the behavior intentionally simple for beginners: dropping a
+            # Python source file means "open this file in the editor".
+            if not path.lower().endswith((".py", ".pyw")):
+                continue
+            if not os.path.isfile(path):
+                continue
+
+            self.get_editor_notebook().show_file(path)
+            opened = True
+
+        return self._external_dnd_copy if opened else self._external_dnd_refuse
 
     def get_editor_notebook(self) -> EditorNotebook:
         assert self._editor_notebook is not None

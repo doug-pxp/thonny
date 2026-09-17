@@ -11,3 +11,10 @@ Original project: https://github.com/thonny/thonny
 
 The original MIT license is preserved in LICENSE.txt. Softsembly's use and
 modification of Thonny are permitted under that license.
+
+
+TkinterDnD2
+------------
+Softsembly uses TkinterDnD2 for native file drag-and-drop support.
+TkinterDnD2 is distributed under the MIT License and bundles the tkDnD Tk extension.
+Project: https://pypi.org/project/tkinterdnd2/

@@ -198,6 +198,9 @@ class Editor(BaseEditor):
         get_workbench().event_generate(
             "EditorTextCreated", editor=self, text_widget=self.get_text_widget()
         )
+        # Softsembly convenience: allow .py / .pyw files dragged from Explorer
+        # or Finder to open directly in the editor.
+        get_workbench().register_external_file_drop_target(self.get_text_widget())
 
         self._last_change_time: float = 0
         self._unpublished_incremental_changes = []
