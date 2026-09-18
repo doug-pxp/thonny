@@ -46,7 +46,7 @@ class NotesView(TextFrame):
                     "This box is meant for your working notes -- assignment instructions, "
                     + "code snippets, whatever.\n\n"
                     + "Everything will be saved automatically "
-                    + "and loaded when you open Thonny next time.\n\n"
+                    + "and loaded when you open Softsembly next time.\n\n"
                     + "Feel free to delete this text to make room for your own notes."
                 ),
             )

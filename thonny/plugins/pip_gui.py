@@ -1255,10 +1255,10 @@ class PluginsPipFrame(PipFrame):
         if not self._looks_like_plug_in(package_data) and not messagebox.askyesno(
             tr("Confirmation"),
             tr(
-                "This doesn't look like Thonny plug-in.\n\n"
+                "This doesn't look like Softsembly plug-in.\n\n"
                 "If you want to install it for your programs, then use\n"
                 "'Tools => Manage packages' instead.\n\n"
-                "Are you sure you want to install it as Thonny plug-in?"
+                "Are you sure you want to install it as Softsembly plug-in?"
             ),
             master=self,
         ):
@@ -1269,16 +1269,16 @@ class PluginsPipFrame(PipFrame):
 
         other_version_text = tr(
             "NB! There may be another version available "
-            + "which is compatible with current Thonny version. "
+            + "which is compatible with current Softsembly version. "
             + "Click on '...' button to choose the version to install."
         )
 
         if name.lower().startswith("thonny-") and not reqs:
             showerror(
-                tr("Thonny plugin without requirements"),
+                tr("Softsembly plugin without requirements"),
                 (
-                    "Looks like you are trying to install an outdated Thonny\n"
-                    + "plug-in (it doesn't specify required Thonny version\n"
+                    "Looks like you are trying to install an outdated Softsembly\n"
+                    + "plug-in (it doesn't specify required Softsembly version\n"
                     + "or hasn't uploaded a whl file before other files).\n\n"
                     + "If you still want it, then please install it from the command line."
                 )
@@ -1292,7 +1292,7 @@ class PluginsPipFrame(PipFrame):
             if conflicts:
                 showerror(
                     tr("Unsuitable requirements"),
-                    tr("This package requires different Thonny version:")
+                    tr("This package requires different Softsembly version:")
                     + "\n\n  "
                     + "\n  ".join(conflicts)
                     + "\n\n"
@@ -1379,14 +1379,14 @@ class PluginsPipDialog(CommonDialog):
 
         banner_msg = (
             tr(
-                "This dialog is for managing Thonny plug-ins and their dependencies.\n"
+                "This dialog is for managing Softsembly plug-ins and their dependencies.\n"
                 + "If you want to install packages for your own programs then choose 'Tools → Manage packages...'"
             )
             + "\n"
         )
 
         banner_msg += "\n" + tr(
-            "NB! You need to restart Thonny after installing / upgrading / uninstalling a plug-in."
+            "NB! You need to restart Softsembly after installing / upgrading / uninstalling a plug-in."
         )
 
         banner_text = tk.Label(
@@ -1416,7 +1416,7 @@ class PluginsPipDialog(CommonDialog):
         self.close_button = ttk.Button(bottom_frame, text=tr("Close"), command=self._on_close)
         self.close_button.grid(sticky="e")
 
-        self.title(tr("Thonny plug-ins"))
+        self.title(tr("Softsembly plug-ins"))
 
         self.bind("<Escape>", self._on_close, True)
         self.bind("<Map>", self._on_show, True)

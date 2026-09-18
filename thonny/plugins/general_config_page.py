@@ -20,7 +20,7 @@ class GeneralConfigurationPage(ConfigurationPage):
         super().__init__(master)
 
         add_option_checkbox(
-            self, "general.single_instance", tr("Allow only single Thonny instance")
+            self, "general.single_instance", tr("Allow only single Softsembly instance")
         )
         add_option_checkbox(self, "general.event_logging", tr("Log program usage events"))
         add_option_checkbox(
@@ -67,7 +67,7 @@ class GeneralConfigurationPage(ConfigurationPage):
             self,
             "general.scaling",
             tr("UI scaling factor"),
-            choices=["default"] + sorted({0.5, 0.75, 1.0, 1.25, 1.33, 1.5, 2.0, 2.5, 3.0, 4.0}),
+            choices=["auto", "default"] + sorted({0.5, 0.75, 1.0, 1.25, 1.33, 1.5, 2.0, 2.5, 3.0, 4.0}),
             width=10,
         )
 
@@ -93,7 +93,7 @@ class GeneralConfigurationPage(ConfigurationPage):
 
         add_text_row(
             self,
-            tr("NB! Restart Thonny after changing these options!"),
+            tr("NB! Restart Softsembly after changing these options!"),
             font="BoldTkDefaultFont",
         )
 

@@ -10,9 +10,9 @@ from thonny.ui_utils import open_path_in_system_file_manager
 def load_plugin() -> None:
     def cmd_open_data_dir():
         quit_dir_response = askyesnocancel(
-            title=tr("Thonny Closure"),
+            title=tr("Softsembly Closure"),
             message=tr(
-                "Do you want to close Thonny before enterring the data folder? This is useful if you want to manually edit the configuration files. Closing Thonny ensures that any changes you make are not overwritten and are properly loaded when Thonny restarts."
+                "Do you want to close Softsembly before enterring the data folder? This is useful if you want to manually edit the configuration files. Closing Softsembly ensures that any changes you make are not overwritten and are properly loaded when Softsembly restarts."
             ),
             parent=get_workbench(),
         )
@@ -27,10 +27,10 @@ def load_plugin() -> None:
     get_workbench().add_command(
         "open_program_dir",
         "tools",
-        tr("Open Thonny program folder..."),
+        tr("Open Softsembly program folder..."),
         cmd_open_program_dir,
         group=110,
     )
     get_workbench().add_command(
-        "open_data_dir", "tools", tr("Open Thonny data folder..."), cmd_open_data_dir, group=110
+        "open_data_dir", "tools", tr("Open Softsembly data folder..."), cmd_open_data_dir, group=110
     )

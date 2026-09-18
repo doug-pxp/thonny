@@ -1,3 +1,4 @@
+import importlib.util
 import os.path
 import shutil
 import subprocess
@@ -84,12 +85,62 @@ class BasedpyrightProxy(LanguageServerProxy):
 
         return False
 
-    def _create_server_process(self) -> subprocess.Popen[bytes]:
-        server_path = shutil.which("basedpyright-langserver")
-        if server_path is None:
-            raise UserError("Can't find basedpyright-langserver")
+    def _resolve_server_command(self) -> typing.List[str]:
+        """Return a launch command which does not depend on shell activation.
 
-        logger.info("basedpyright-langserver path: %r", server_path)
+        Softsembly must be able to find its language server when launched from a
+        development venv, a bundled Windows runtime, or a macOS/Linux bundle.
+        PATH is only one possible source; the runtime itself is authoritative.
+        """
+        path_server = shutil.which("basedpyright-langserver")
+        if path_server:
+            return [path_server, "--stdio"]
+
+        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+        prefix = os.path.abspath(sys.prefix)
+
+        if os.name == "nt":
+            names = ["basedpyright-langserver.exe", "basedpyright-langserver.cmd", "basedpyright-langserver"]
+            candidate_dirs = [
+                exe_dir,                         # venv: .venv\Scripts\python.exe
+                os.path.join(prefix, "Scripts"),# bundled/standard Windows Python
+                os.path.join(os.path.dirname(exe_dir), "Scripts"),
+            ]
+        else:
+            names = ["basedpyright-langserver"]
+            candidate_dirs = [
+                exe_dir,                         # venv/bundle: .../bin/python
+                os.path.join(prefix, "bin"),
+                os.path.join(os.path.dirname(exe_dir), "bin"),
+            ]
+
+        seen = set()
+        for directory in candidate_dirs:
+            directory = os.path.normcase(os.path.normpath(directory))
+            if directory in seen:
+                continue
+            seen.add(directory)
+            for name in names:
+                candidate = os.path.join(directory, name)
+                if os.path.isfile(candidate):
+                    logger.info("Resolved basedpyright-langserver beside Softsembly runtime: %r", candidate)
+                    return [candidate, "--stdio"]
+
+        # Final fallback: use the same Python runtime which is already running
+        # Softsembly. This is independent of PATH and works whenever the
+        # basedpyright package is installed in Softsembly's private environment.
+        if importlib.util.find_spec("basedpyright") is not None:
+            logger.info("Launching BasedPyright through Softsembly Python runtime: %r", sys.executable)
+            return [sys.executable, "-m", "basedpyright.langserver", "--stdio"]
+
+        raise UserError(
+            "Softsembly's Python language service is unavailable. "
+            "The basedpyright package is not installed in the Softsembly runtime."
+        )
+
+    def _create_server_process(self) -> subprocess.Popen[bytes]:
+        command = self._resolve_server_command()
+        logger.info("BasedPyright launch command: %r", command)
 
         if os.name == "nt":
             creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
@@ -109,8 +160,7 @@ class BasedpyrightProxy(LanguageServerProxy):
             logger.debug("Basedpyright env: %s=%r", key, env.get(key))
 
         return subprocess.Popen(
-            [server_path, "--stdio"],
-            executable=server_path,
+            command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

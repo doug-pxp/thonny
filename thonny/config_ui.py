@@ -23,7 +23,7 @@ class ConfigurationDialog(CommonDialog):
 
     def __init__(self, master, page_records_with_order):
         super().__init__(master)
-        self.title(tr("Thonny options"))
+        self.title(tr("Softsembly options"))
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)

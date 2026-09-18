@@ -29,11 +29,12 @@ def run() -> int:
 
     import runpy
 
-    if sys.executable.endswith("thonny.exe"):
-        # otherwise some library may try to run its subprocess with thonny.exe
+    if sys.executable.lower().endswith(("thonny.exe", "softsembly.exe")):
+        # otherwise some library may try to run its subprocess with the GUI launcher
         # NB! Must be pythonw.exe not python.exe, otherwise Runner thinks console
         # is already allocated.
-        sys.executable = sys.executable[: -len("thonny.exe")] + "pythonw.exe"
+        launcher_name = os.path.basename(sys.executable)
+        sys.executable = sys.executable[: -len(launcher_name)] + "pythonw.exe"
 
     _set_dpi_aware()
 
@@ -51,7 +52,7 @@ def run() -> int:
     if _should_delegate():
         try:
             _delegate_to_existing_instance(parsed_args)
-            print("Delegated to an existing Thonny instance. Exiting now.")
+            print("Delegated to an existing Softsembly instance. Exiting now.")
             return 0
         except Exception:
             import traceback
@@ -79,7 +80,7 @@ def run() -> int:
             # Messagebox may or may not be shown, but here it's no use of being defencive anymore
             messagebox.showerror(
                 title,
-                f"Thonny encountered an internal error:\n{str(e) or type(e)}"
+                f"Softsembly encountered an internal error:\n{str(e) or type(e)}"
                 f"\n\nSee frontend.log for more details",
                 parent=tk._default_root,
             )
@@ -175,18 +176,50 @@ def _create_client_socket():
 
 
 def _set_dpi_aware():
-    # https://stackoverflow.com/questions/36134072/setprocessdpiaware-seems-not-to-work-under-windows-10
-    # https://bugs.python.org/issue33656
-    # https://msdn.microsoft.com/en-us/library/windows/desktop/dn280512(v=vs.85).aspx
-    # https://github.com/python/cpython/blob/master/Lib/idlelib/pyshell.py
-    if sys.platform == "win32":
-        try:
-            import ctypes
+    """Opt Softsembly into the best DPI mode Windows supports.
 
-            PROCESS_SYSTEM_DPI_AWARE = 1
-            ctypes.OleDLL("shcore").SetProcessDpiAwareness(PROCESS_SYSTEM_DPI_AWARE)
-        except (ImportError, AttributeError, OSError):
+    Per-monitor-v2 matters on laptops and mixed-monitor setups because Windows can
+    otherwise virtualize coordinates and leave Tk rendering at the wrong physical
+    size. Older Windows versions fall back gracefully.
+    """
+    if sys.platform != "win32":
+        return
+
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+
+        # Windows 10 Creators Update+: DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2.
+        # This also lets Windows/Tk react when a window moves between monitors
+        # with different scale factors.
+        try:
+            set_context = user32.SetProcessDpiAwarenessContext
+            set_context.argtypes = [ctypes.c_void_p]
+            set_context.restype = ctypes.c_bool
+            if set_context(ctypes.c_void_p(-4)):
+                return
+        except (AttributeError, OSError):
             pass
+
+        # Windows 8.1+: per-monitor DPI aware.
+        try:
+            PROCESS_PER_MONITOR_DPI_AWARE = 2
+            result = ctypes.OleDLL("shcore").SetProcessDpiAwareness(
+                PROCESS_PER_MONITOR_DPI_AWARE
+            )
+            if result in (0, -2147024891):  # S_OK or already set by manifest
+                return
+        except (AttributeError, OSError):
+            pass
+
+        # Vista+: system-DPI-aware fallback.
+        try:
+            user32.SetProcessDPIAware()
+        except (AttributeError, OSError):
+            pass
+    except (ImportError, OSError):
+        pass
 
 
 def _get_frontend_log_file():
@@ -208,7 +241,7 @@ def _parse_arguments_to_dict(raw_args: List[str]) -> Dict[str, Any]:
     )
 
     parser.add_argument(
-        "--version", help="Show Thonny version and exit", action="version", version=get_version()
+        "--version", help="Show Softsembly version and exit", action="version", version=get_version()
     )
 
     parser.add_argument(

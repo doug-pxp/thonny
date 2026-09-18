@@ -532,7 +532,7 @@ class Replayer(tk.Toplevel):
         if session_label and session_label.startswith(FILE_TOKEN):
             s = session_label
         else:
-            s = tr("Thonny Replayer")
+            s = tr("Softsembly Replayer")
 
         if self.last_event_index is not None and self.last_event_index > -1:
             event = self.events[self.last_event_index]
@@ -625,7 +625,7 @@ class Replayer(tk.Toplevel):
         """
 
     def show(self):
-        self.title("Thonny")
+        self.title("Softsembly")
 
         get_workbench().set_default("replayer.zoomed", False)
         get_workbench().set_default("replayer.width", ems_to_pixels(70))

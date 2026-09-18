@@ -177,7 +177,7 @@ class ThemeAndFontConfigurationPage(ConfigurationPage):
 
         ttk.Label(
             self,
-            text=tr("NB! Some style elements change only after restarting Thonny!"),
+            text=tr("NB! Some style elements change only after restarting Softsembly!"),
             font="BoldTkDefaultFont",
         ).grid(row=40, column=1, columnspan=5, sticky="w", pady=(5, 0))
 

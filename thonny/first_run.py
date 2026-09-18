@@ -1,5 +1,6 @@
 import os.path
 import tkinter as tk
+import tkinter.font as tk_font
 from logging import getLogger
 from tkinter import ttk
 
@@ -16,9 +17,68 @@ class FirstRunWindow(tk.Tk):
     def __init__(self, configuration_manager):
         logger.info("Creating FirstRunWindow")
         super().__init__(className="Thonny")
-        ttk.Style().theme_use(ui_utils.get_default_basic_theme())
+        style = ttk.Style()
+        # Native Windows themes ignore several ttk foreground/background settings,
+        # which made the dark first-run form render light controls with light text.
+        # Clam is cross-platform and consistently honors our Softsembly palette.
+        style.theme_use("clam")
 
-        self.title("Welcome to Thonny!" + "   [portable]" if is_portable() else "")
+        # Keep the very first launch visually consistent with Softsembly's dark product theme.
+        background = "#171719"
+        panel = "#1E1E22"
+        border = "#303038"
+        primary_text = "#F5F5F6"
+        secondary_text = "#A6A6AF"
+        yellow = "#FFE29A"
+        green = "#79F56B"
+
+        # Make first-launch controls readable even before the main workbench has
+        # initialized its UI scaling settings.
+        for font_name in ["TkDefaultFont", "TkTextFont"]:
+            try:
+                font = tk_font.nametofont(font_name)
+                if int(font.cget("size")) > 0 and int(font.cget("size")) < 11:
+                    font.configure(size=11)
+            except Exception:
+                pass
+
+        self.configure(background=background)
+        style.configure("TFrame", background=background)
+        style.configure("TLabel", background=background, foreground=primary_text)
+        style.configure(
+            "Softsembly.TButton",
+            background=yellow,
+            foreground=background,
+            bordercolor=yellow,
+            focuscolor=yellow,
+            padding=(12, 6),
+        )
+        style.map(
+            "Softsembly.TButton",
+            background=[("active", "#F4D378"), ("pressed", green), ("disabled", border)],
+            foreground=[("disabled", secondary_text)],
+        )
+        style.configure(
+            "Softsembly.TCombobox",
+            fieldbackground=panel,
+            background=panel,
+            foreground=primary_text,
+            arrowcolor=yellow,
+            bordercolor=border,
+            lightcolor=border,
+            darkcolor=border,
+            padding=4,
+        )
+        style.map(
+            "Softsembly.TCombobox",
+            fieldbackground=[("readonly", panel), ("disabled", panel)],
+            background=[("readonly", panel)],
+            foreground=[("readonly", primary_text), ("disabled", secondary_text)],
+            selectbackground=[("readonly", panel)],
+            selectforeground=[("readonly", primary_text)],
+        )
+
+        self.title("Welcome to Softsembly!" + "   [portable]" if is_portable() else "")
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         self.ok = False
 
@@ -47,12 +107,21 @@ class FirstRunWindow(tk.Tk):
             1, "Language:", self.language_variable, list(languages.LANGUAGES_DICT.values())
         )
 
+        # Softsembly has one beginner-friendly default experience. Advanced
+        # configuration remains available later under Tools -> Options.
         self.mode_variable = tk.StringVar(value=STD_MODE_TEXT)
-        self.add_combo(
-            2, "UI mode:", self.mode_variable, [STD_MODE_TEXT, SIMPLE_MODE_TEXT, RPI_MODE_TEXT]
+
+        ready_label = ttk.Label(
+            self.main_frame,
+            text="Python is ready. No setup required.",
+            foreground=green,
+        )
+        ready_label.grid(
+            row=2, column=2, columnspan=2,
+            padx=(0, self.padx), pady=(self.pady * 0.5, 0), sticky="w"
         )
 
-        ok_button = ttk.Button(self.main_frame, text="Let's go!", command=self.on_ok)
+        ok_button = ttk.Button(self.main_frame, text="Let's go!", command=self.on_ok, style="Softsembly.TButton")
         ok_button.grid(
             row=3, column=3, padx=(0, self.padx), pady=(self.pady * 0.7, self.pady), sticky="se"
         )
@@ -76,6 +145,7 @@ class FirstRunWindow(tk.Tk):
             # Actual length of longest value creates too wide combobox
             width=40 if ui_utils.running_on_mac_os() else 45,
             values=values,
+            style="Softsembly.TCombobox",
         )
         combobox.grid(
             row=row,

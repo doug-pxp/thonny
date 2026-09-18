@@ -171,6 +171,8 @@ class Workbench(tk.Tk):
         self._event_queue = queue.Queue()  # Can be appended to by threads
         self._event_polling_id = None
         self._ls_proxies: List[LanguageServerProxy] = []
+        self._language_server_recovery_after_id = None
+        self._language_server_recovery_attempts = 0
         self.initializing = True
 
         self._secrets: Dict[str, str] = {}
@@ -237,6 +239,7 @@ class Workbench(tk.Tk):
 
         self._init_containers()
         assert self._editor_notebook is not None
+        self._init_external_file_drop()
 
         self._init_program_arguments_frame()
         self._init_regular_mode_link()  # TODO:
@@ -364,7 +367,7 @@ class Workbench(tk.Tk):
         if bad_home_msg:
             messagebox.showwarning(
                 "Problems with home directory",
-                bad_home_msg + "\nThis may cause problems for Thonny.",
+                bad_home_msg + "\nThis may cause problems for Softsembly.",
                 master=self,
             )
 
@@ -382,7 +385,7 @@ class Workbench(tk.Tk):
         self.set_default("general.ui_mode", "simple" if running_on_rpi() else "regular")
         self.set_default("general.debug_mode", False)
         self.set_default("general.disable_notification_sound", False)
-        self.set_default("general.scaling", "default")
+        self.set_default("general.scaling", "auto")
         self.set_default("general.language", languages.BASE_LANGUAGE_CODE)
         self.set_default("general.font_scaling_mode", "default")
         self.set_default("general.environment", [])
@@ -430,14 +433,57 @@ class Workbench(tk.Tk):
         thonny.set_logging_level()
 
     def get_main_language_server_proxy(self) -> Optional[LanguageServerProxy]:
-        if self._ls_proxies:
-            return self._ls_proxies[0]
+        # Never hand UI features a dead / half-initialized proxy. Language
+        # services are optional; editor, toolbar and file operations must keep
+        # working while the server restarts.
+        for proxy in self._ls_proxies:
+            if proxy.is_initialized():
+                return proxy
         return None
+
+    def request_language_server_recovery(self, failed_proxy: LanguageServerProxy) -> None:
+        if failed_proxy not in self._ls_proxies:
+            return
+        if self._language_server_recovery_after_id is not None:
+            return
+
+        # Avoid a tight crash/restart loop. Three retries are enough to recover
+        # transient BasedPyright exits while leaving the rest of Softsembly usable.
+        if self._language_server_recovery_attempts >= 3:
+            logger.error("Language server recovery limit reached; continuing without language services")
+            return
+
+        self._language_server_recovery_attempts += 1
+        delay_ms = 500 * self._language_server_recovery_attempts
+        logger.warning(
+            "Scheduling language server recovery attempt %d in %d ms",
+            self._language_server_recovery_attempts,
+            delay_ms,
+        )
+        self._language_server_recovery_after_id = self.after(delay_ms, self._recover_language_servers)
+
+    def _recover_language_servers(self) -> None:
+        self._language_server_recovery_after_id = None
+        try:
+            self.start_or_restart_language_servers()
+        except Exception:
+            logger.exception("Language server recovery failed")
+
+    def language_server_recovered(self, proxy: LanguageServerProxy) -> None:
+        if proxy in self._ls_proxies:
+            self._language_server_recovery_attempts = 0
 
     def get_initialized_ls_proxies(self) -> List[LanguageServerProxy]:
         return [ls_proxy for ls_proxy in self._ls_proxies if ls_proxy.is_initialized()]
 
     def start_or_restart_language_servers(self) -> None:
+        if self._language_server_recovery_after_id is not None:
+            try:
+                self.after_cancel(self._language_server_recovery_after_id)
+            except tk.TclError:
+                pass
+            self._language_server_recovery_after_id = None
+
         self.shut_down_language_servers()
 
         for class_ in self._language_server_proxy_classes:
@@ -538,38 +584,87 @@ class Workbench(tk.Tk):
         """Initialize language."""
         languages.set_language(self.get_option("general.language"))
 
+    def _get_usable_screen_geometry(self) -> Tuple[int, int, int, int]:
+        """Return the primary monitor work area as (left, top, width, height).
+
+        On Windows this excludes the taskbar. Other platforms fall back to Tk's
+        screen dimensions. Values are in the same coordinate space Tk uses.
+        """
+        if running_on_windows():
+            try:
+                import ctypes
+                from ctypes import wintypes
+
+                class RECT(ctypes.Structure):
+                    _fields_ = [
+                        ("left", wintypes.LONG),
+                        ("top", wintypes.LONG),
+                        ("right", wintypes.LONG),
+                        ("bottom", wintypes.LONG),
+                    ]
+
+                rect = RECT()
+                SPI_GETWORKAREA = 0x0030
+                if ctypes.windll.user32.SystemParametersInfoW(
+                    SPI_GETWORKAREA, 0, ctypes.byref(rect), 0
+                ):
+                    width = rect.right - rect.left
+                    height = rect.bottom - rect.top
+                    if width > 0 and height > 0:
+                        return rect.left, rect.top, width, height
+            except Exception:
+                logger.debug("Could not query Windows work area", exc_info=True)
+
+        return 0, 0, self.winfo_screenwidth(), self.winfo_screenheight()
+
     def _init_window(self) -> None:
-        self.title("Thonny")
+        self.title("Softsembly")
+
+        work_left, work_top, work_width, work_height = self._get_usable_screen_geometry()
+
+        # New profiles use proportions rather than fixed pixel dimensions. This
+        # keeps Softsembly useful on small laptops, standard monitors and HiDPI
+        # displays without maintaining screen-size-specific presets.
+        target_width = max(640, round(work_width * (0.92 if self.in_simple_mode() else 0.90)))
+        target_height = max(480, round(work_height * 0.88))
+        target_width = min(target_width, work_width)
+        target_height = min(target_height, work_height)
+        target_left = work_left + max(0, (work_width - target_width) // 2)
+        target_top = work_top + max(0, (work_height - target_height) // 2)
 
         self.set_default("layout.zoomed", False)
-        self.set_default("layout.top", 50)
-        self.set_default("layout.left", 150)
-        if self.in_simple_mode():
-            self.set_default("layout.width", 1130)
-            self.set_default("layout.height", 700)
-        else:
-            self.set_default("layout.width", 800)
-            self.set_default("layout.height", 650)
-        self.set_default("layout.w_width", 200)
-        self.set_default("layout.e_width", 200)
-        self.set_default("layout.s_height", 200)
+        self.set_default("layout.top", target_top)
+        self.set_default("layout.left", target_left)
+        self.set_default("layout.width", target_width)
+        self.set_default("layout.height", target_height)
+
+        # Pane defaults also scale with the actual window instead of assuming a
+        # desktop-sized viewport. User-resized values continue to persist.
+        side_width = max(170, min(300, round(target_width * 0.18)))
+        shell_height = max(150, min(320, round(target_height * 0.27)))
+        self.set_default("layout.w_width", side_width)
+        self.set_default("layout.e_width", side_width)
+        self.set_default("layout.s_height", shell_height)
 
         # I don't actually need saved options for Full screen,
         # but it's easier to create menu items, if I use configuration manager's variables
         self.set_default("view.full_screen", False)
 
         # In order to avoid confusion set these settings to False
-        # even if they were True when Thonny was last run
+        # even if they were True when Softsembly was last run
         self.set_option("view.full_screen", False)
 
-        self.geometry(
-            "{0}x{1}+{2}+{3}".format(
-                min(max(self.get_option("layout.width"), 320), self.winfo_screenwidth()),
-                min(max(self.get_option("layout.height"), 240), self.winfo_screenheight()),
-                min(max(self.get_option("layout.left"), 0), self.winfo_screenwidth() - 200),
-                min(max(self.get_option("layout.top"), 0), self.winfo_screenheight() - 200),
-            )
-        )
+        # Clamp persisted geometry to the current monitor's usable area. This
+        # handles docking/undocking, resolution changes and moving a profile from
+        # a large desktop to a smaller laptop.
+        width = min(max(int(self.get_option("layout.width")), 480), work_width)
+        height = min(max(int(self.get_option("layout.height")), 360), work_height)
+        left = int(self.get_option("layout.left"))
+        top = int(self.get_option("layout.top"))
+        left = min(max(left, work_left), work_left + max(0, work_width - width))
+        top = min(max(top, work_top), work_top + max(0, work_height - height))
+
+        self.geometry(f"{width}x{height}+{left}+{top}")
 
         if self.get_option("layout.zoomed"):
             ui_utils.set_zoomed(self, True)
@@ -922,24 +1017,13 @@ class Workbench(tk.Tk):
             self.add_command(
                 "quit",
                 "help",
-                tr("Exit Thonny"),
+                tr("Exit Softsembly"),
                 self._on_close,
                 image="quit",
                 caption=tr("Quit"),
                 include_in_toolbar=True,
                 group=101,
             )
-
-        self.add_command(
-            "SupportUkraine",
-            "help",
-            tr("Support Ukraine"),
-            self._support_ukraine,
-            image="Ukraine",
-            caption=tr("Support"),
-            include_in_toolbar=True,
-            group=101,
-        )
 
         if thonny.in_debug_mode():
             self.bind_all("<Control-Shift-Alt-D>", self._print_state_for_debugging, True)
@@ -1867,7 +1951,7 @@ class Workbench(tk.Tk):
                 tr("Regular mode"),
                 tr(
                     "Configuration has been updated. "
-                    + "Restart Thonny to start working in regular mode.\n\n"
+                    + "Restart Softsembly to start working in regular mode.\n\n"
                     + "(See 'Tools → Options → General' if you change your mind later.)"
                 ),
                 master=self,
@@ -2016,6 +2100,73 @@ class Workbench(tk.Tk):
             self._view_records[view_id]["instance"] = view
 
         return self._view_records[view_id]["instance"]
+
+    def _init_external_file_drop(self) -> None:
+        """Enable native Finder / Explorer drops for Python source files."""
+        self._external_file_drop_enabled = False
+        try:
+            from tkinterdnd2 import COPY, DND_FILES, REFUSE_DROP, TkinterDnD
+        except ImportError:
+            logger.info("tkinterdnd2 is not installed; external file drop is disabled")
+            return
+
+        try:
+            # Importing tkinterdnd2 adds the DnD methods to tkinter BaseWidget.
+            # We only need to load TkDND into this Workbench's Tcl interpreter.
+            TkinterDnD._require(self)
+            self._external_dnd_copy = COPY
+            self._external_dnd_files = DND_FILES
+            self._external_dnd_refuse = REFUSE_DROP
+            self._external_file_drop_enabled = True
+
+            # The notebook accepts drops over tabs / blank notebook space.
+            self.register_external_file_drop_target(self.get_editor_notebook())
+        except Exception:
+            # Drag-and-drop is a convenience feature. Never prevent Softsembly
+            # from launching if TkDND is unavailable on a particular machine.
+            logger.exception("Could not initialize external file drag-and-drop")
+            self._external_file_drop_enabled = False
+
+    def register_external_file_drop_target(self, target: tk.Widget) -> None:
+        """Register a widget as a target for Python files dragged from the OS."""
+        if not getattr(self, "_external_file_drop_enabled", False):
+            return
+
+        try:
+            target.drop_target_register(self._external_dnd_files)
+            target.dnd_bind("<<Drop>>", self._handle_external_file_drop)
+        except Exception:
+            logger.exception("Could not register external file drop target %r", target)
+
+    def _handle_external_file_drop(self, event):
+        opened = False
+        try:
+            dropped_items = self.tk.splitlist(event.data)
+        except Exception:
+            dropped_items = (event.data,)
+
+        for item in dropped_items:
+            path = str(item).strip()
+            if path.startswith("file:"):
+                try:
+                    from thonny.misc_utils import uri_to_target_path
+
+                    path = uri_to_target_path(path)
+                except Exception:
+                    logger.exception("Could not decode dropped file URI %r", path)
+                    continue
+
+            # Keep the behavior intentionally simple for beginners: dropping a
+            # Python source file means "open this file in the editor".
+            if not path.lower().endswith((".py", ".pyw")):
+                continue
+            if not os.path.isfile(path):
+                continue
+
+            self.get_editor_notebook().show_file(path)
+            opened = True
+
+        return self._external_dnd_copy if opened else self._external_dnd_refuse
 
     def get_editor_notebook(self) -> EditorNotebook:
         assert self._editor_notebook is not None
@@ -2376,10 +2527,50 @@ class Workbench(tk.Tk):
             self._default_scaling_factor = 1.33
 
         scaling = self.get_option("general.scaling")
-        if scaling in ["default", "auto"]:  # auto was used in 2.2b3
+
+        # v0.2-v0.6 used 1.25 as Softsembly's hard-coded default. Migrate that
+        # old default to automatic DPI-aware scaling so existing installs benefit
+        # from the laptop / HiDPI fix without requiring a settings change.
+        if running_on_windows() and str(scaling) == "1.25":
+            scaling = "auto"
+            self.set_option("general.scaling", "auto")
+
+        if scaling in ["default", "auto"]:
             self._scaling_factor = self._default_scaling_factor
+
+            if running_on_windows():
+                # Use the DPI of the actual Softsembly window. With per-monitor-v2
+                # awareness this reflects Windows Display Scaling (100%, 125%,
+                # 150%, 200%...) instead of guessing from raw resolution.
+                try:
+                    import ctypes
+
+                    user32 = ctypes.windll.user32
+                    dpi = None
+                    try:
+                        get_dpi_for_window = user32.GetDpiForWindow
+                        get_dpi_for_window.argtypes = [ctypes.c_void_p]
+                        get_dpi_for_window.restype = ctypes.c_uint
+                        dpi = get_dpi_for_window(self.winfo_id())
+                    except (AttributeError, OSError):
+                        pass
+
+                    if not dpi:
+                        try:
+                            dpi = user32.GetDpiForSystem()
+                        except (AttributeError, OSError):
+                            dpi = None
+
+                    if dpi and 72 <= dpi <= 768:
+                        self._scaling_factor = dpi / 72.0
+                except Exception:
+                    logger.debug("Could not query Windows window DPI", exc_info=True)
         else:
             self._scaling_factor = float(scaling)
+
+        # Protect against corrupt platform/config values while still allowing
+        # accessibility-scale UIs.
+        self._scaling_factor = min(max(float(self._scaling_factor), 0.75), 4.0)
 
         if get_tk_version_str().startswith("8."):
             MAC_SCALING_MODIFIER = 1.7
@@ -2433,6 +2624,19 @@ class Workbench(tk.Tk):
                 orig_size = f.cget("size")
                 assert orig_size > 0
                 f.configure(size=int(orig_size * self._scaling_factor / MAC_SCALING_MODIFIER))
+
+        # Keep the application chrome comfortably readable on Windows. This is
+        # intentionally limited to built-in UI fonts; editor and shell font sizes
+        # remain governed by their existing preferences.
+        if running_on_windows():
+            for name, minimum in [("TkDefaultFont", 12), ("TkMenuFont", 13), ("TkTextFont", 12)]:
+                try:
+                    font = tk_font.nametofont(name)
+                    current = int(font.cget("size"))
+                    if current > 0 and current < minimum:
+                        font.configure(size=minimum)
+                except tk.TclError:
+                    pass
 
     def update_fonts(self) -> None:
         editor_font_size = self._guard_font_size(self.get_option("view.editor_font_size"))
@@ -2546,14 +2750,24 @@ class Workbench(tk.Tk):
         else:
             image_spec = image
 
-        button = CustomToolbutton(
+        # Use a real ttk button for the main toolbar. This keeps the icon and the
+        # clickable surface as one widget, so clicking the center of the icon is
+        # identical to clicking its surrounding hit area. The previous
+        # CustomToolbutton uses a nested Label, which can produce confusing
+        # hit-testing / hover behaviour under Windows DPI scaling.
+        button = ttk.Button(
             group_frame,
             image=image_spec,
             state=tk.NORMAL,
             text=caption,
             compound="top" if self.in_simple_mode() else None,
-            pad=ems_to_pixels(0.5) if self.in_simple_mode() else ems_to_pixels(0.25),
+            padding=(
+                ems_to_pixels(0.5) if self.in_simple_mode() else ems_to_pixels(0.38),
+                ems_to_pixels(0.5) if self.in_simple_mode() else ems_to_pixels(0.38),
+            ),
             width=button_width,
+            style="Toolbutton",
+            takefocus=False,
         )
 
         def toolbar_handler(*args):
@@ -2995,9 +3209,9 @@ class Workbench(tk.Tk):
     def update_title(self, event=None) -> None:
         editor = self.get_editor_notebook().get_current_editor()
         if self._is_portable:
-            title_text = "Portable Thonny"
+            title_text = "Portable Softsembly"
         else:
-            title_text = "Thonny"
+            title_text = "Softsembly"
 
         profile = self.get_profile()
         if profile != "default":

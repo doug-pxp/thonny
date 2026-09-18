@@ -74,6 +74,7 @@ class LanguageServerProxy(ABC):
 
         self._proc: Optional[subprocess.Popen] = None
         self._invalidated: bool = False
+        self._recovery_requested: bool = False
         self._shutdown_accepted: bool = False
         self._last_request_id: int = 0
         self._pending_handlers: Dict[int, Callable] = {}
@@ -81,6 +82,11 @@ class LanguageServerProxy(ABC):
         self._notification_handlers: Dict[str, List[Callable]] = {}
         self._diagnostics: Dict[str, PublishDiagnosticsParams] = {}
         self._unprocessed_messages_from_server: Queue[Dict] = Queue()
+        # LSP notifications can be produced while the language server is still
+        # completing its initialize handshake (for example when the Python
+        # backend changes state as a program starts). Queue them instead of
+        # surfacing an internal-error dialog to the user.
+        self._notifications_before_initialization: List[typing.Tuple[str, Any]] = []
 
         self.server_capabilities: Optional[lsp_types.ServerCapabilities] = None
         self.server_info: Optional[lsp_types.ServerCapabilities] = None
@@ -118,6 +124,15 @@ class LanguageServerProxy(ABC):
 
         self.notify_initialized(InitializedParams())
 
+        # Deliver any document/workspace notifications which arrived during
+        # startup now that the server is ready to accept them.
+        pending_notifications = self._notifications_before_initialization
+        self._notifications_before_initialization = []
+        for method, params in pending_notifications:
+            self._send_notification(method, params)
+
+        self._recovery_requested = False
+        get_workbench().language_server_recovered(self)
         get_workbench().event_generate("LanguageServerInitialized", self)
 
         # Specifying settings as initializationOptions is not enough
@@ -128,18 +143,41 @@ class LanguageServerProxy(ABC):
     def is_initialized(self) -> bool:
         return self._server_process_alive() and self.server_capabilities is not None
 
-    def _check_initialized(self) -> None:
-        if not self.is_initialized():
-            if not self._server_process_alive():
-                raise RuntimeError("Server has been closed")
+    def _check_initialized(self) -> bool:
+        """Return whether this proxy can accept LSP traffic.
 
-            if self.server_capabilities is None:
-                raise RuntimeError("Server hasn't been initialized yet")
+        Language-server availability is an optional editor service, not a reason
+        to take down the IDE. If the process disappears unexpectedly, invalidate
+        the proxy and ask the workbench to recover it instead of raising into Tk's
+        event loop (which used to produce customer-facing Internal Tk errors).
+        """
+        if self.is_initialized():
+            return True
+
+        if not self._server_process_alive():
+            self._handle_unexpected_server_exit()
+        return False
 
     def _invalidate(self):
         if not self._invalidated:
             self._invalidated = True
             get_workbench().event_generate("LanguageServerInvalidated", self)
+
+    def is_invalidated(self) -> bool:
+        return self._invalidated
+
+    def _handle_unexpected_server_exit(self) -> None:
+        if self._invalidated:
+            return
+
+        logger.warning("Language server process exited unexpectedly")
+        self._invalidate()
+        if not self._recovery_requested:
+            self._recovery_requested = True
+            try:
+                get_workbench().request_language_server_recovery(self)
+            except Exception:
+                logger.exception("Could not schedule language-server recovery")
 
     def get_settings(self) -> Dict:
         return {}
@@ -1054,6 +1092,7 @@ class LanguageServerProxy(ABC):
             get_workbench().after(100, self._keep_processing_messages_from_server)
         else:
             logger.info("Stopping message processing")
+            self._handle_unexpected_server_exit()
 
     def _process_messages_from_server(self) -> None:
         while not self._unprocessed_messages_from_server.empty():
@@ -1068,8 +1107,9 @@ class LanguageServerProxy(ABC):
     def _send_request(
         self, method: str, params: Any, handler: Callable[[LspResponse[Any]], None]
     ) -> None:
-        if method != "initialize":
-            self._check_initialized()
+        if method != "initialize" and not self._check_initialized():
+            logger.debug("Skipping LSP request %s while server is unavailable", method)
+            return
 
         request_id = self._last_request_id + 1
         self._last_request_id = request_id
@@ -1084,7 +1124,17 @@ class LanguageServerProxy(ABC):
         )
 
     def _send_notification(self, method: str, params: Any) -> None:
-        self._check_initialized()
+        # A healthy language server may need a moment to finish its initialize
+        # handshake. Notifications are fire-and-forget, so queueing them here is
+        # safer than turning this normal startup race into a customer-facing
+        # "Server hasn't been initialized yet" error dialog.
+        if not self.is_initialized():
+            if not self._server_process_alive():
+                self._handle_unexpected_server_exit()
+                logger.debug("Dropping LSP notification %s while server is unavailable", method)
+                return
+            self._notifications_before_initialization.append((method, params))
+            return
 
         self._send_json_rpc_message(
             {"jsonrpc": "2.0", "method": method, "params": _convert_to_json_value(params)}
@@ -1093,7 +1143,9 @@ class LanguageServerProxy(ABC):
     def _send_response(
         self, request_id: Union[str, int], result: Any, error: Optional[ResponseError] = None
     ) -> None:
-        self._check_initialized()
+        if not self._check_initialized():
+            logger.debug("Skipping LSP response %s while server is unavailable", request_id)
+            return
 
         msg = {
             "jsonrpc": "2.0",
@@ -1108,13 +1160,21 @@ class LanguageServerProxy(ABC):
     def _send_json_rpc_message(self, msg: Dict) -> None:
         if get_workbench().in_debug_mode():
             self._add_to_communication_log(msg, "CLIENT")
+
+        if not self._server_process_alive() or self._proc is None or self._proc.stdin is None:
+            self._handle_unexpected_server_exit()
+            return
+
         json_bytes = json.dumps(msg).encode("utf-8")
-        # print("SEnding", json_bytes)
-        self._proc.stdin.write(JSON_RPC_LEN_HEADER_PREFIX)
-        self._proc.stdin.write(str(len(json_bytes)).encode("utf-8"))
-        self._proc.stdin.write(b"\r\n\r\n")
-        self._proc.stdin.write(json_bytes)
-        self._proc.stdin.flush()
+        try:
+            self._proc.stdin.write(JSON_RPC_LEN_HEADER_PREFIX)
+            self._proc.stdin.write(str(len(json_bytes)).encode("utf-8"))
+            self._proc.stdin.write(b"\r\n\r\n")
+            self._proc.stdin.write(json_bytes)
+            self._proc.stdin.flush()
+        except (BrokenPipeError, OSError, ValueError):
+            logger.warning("Language server connection closed while sending %r", msg.get("method"), exc_info=True)
+            self._handle_unexpected_server_exit()
 
     def _server_process_alive(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
