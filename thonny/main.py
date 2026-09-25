@@ -15,6 +15,7 @@ from thonny import (
     get_thonny_user_dir,
     get_version,
     prepare_thonny_user_dir,
+    softsembly,
 )
 
 logger = logging.getLogger(__name__)
@@ -205,9 +206,7 @@ def _set_dpi_aware():
         # Windows 8.1+: per-monitor DPI aware.
         try:
             PROCESS_PER_MONITOR_DPI_AWARE = 2
-            result = ctypes.OleDLL("shcore").SetProcessDpiAwareness(
-                PROCESS_PER_MONITOR_DPI_AWARE
-            )
+            result = ctypes.OleDLL("shcore").SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE)
             if result in (0, -2147024891):  # S_OK or already set by manifest
                 return
         except (AttributeError, OSError):
@@ -241,7 +240,10 @@ def _parse_arguments_to_dict(raw_args: List[str]) -> Dict[str, Any]:
     )
 
     parser.add_argument(
-        "--version", help="Show Softsembly version and exit", action="version", version=get_version()
+        "--version",
+        help="Show Softsembly version and exit",
+        action="version",
+        version=f"{softsembly.get_display_version()} (Thonny {get_version()})",
     )
 
     parser.add_argument(

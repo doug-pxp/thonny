@@ -171,8 +171,9 @@ class Workbench(tk.Tk):
         self._event_queue = queue.Queue()  # Can be appended to by threads
         self._event_polling_id = None
         self._ls_proxies: List[LanguageServerProxy] = []
-        self._language_server_recovery_after_id = None
-        self._language_server_recovery_attempts = 0
+        # Per-server-class recovery bookkeeping (see request_language_server_recovery)
+        self._ls_recovery_after_ids: Dict[type, str] = {}
+        self._ls_recovery_attempts: Dict[type, int] = {}
         self.initializing = True
 
         self._secrets: Dict[str, str] = {}
@@ -432,153 +433,200 @@ class Workbench(tk.Tk):
         os.environ["THONNY_DEBUG"] = str(self.get_option("general.debug_mode", False))
         thonny.set_logging_level()
 
+    # ------------------------------------------------------------------
+    # Language servers
+    #
+    # Softsembly runs several language servers (BasedPyright is the main one,
+    # Ruff is a linter). Each is an optional helper: if one dies, only that one
+    # is restarted, with a bounded number of retries, and the others keep
+    # running untouched.
+    # ------------------------------------------------------------------
+
+    MAX_LS_RECOVERY_ATTEMPTS = 3
+    LS_STABLE_UPTIME_MS = 30_000
+
     def get_main_language_server_proxy(self) -> Optional[LanguageServerProxy]:
-        # Never hand UI features a dead / half-initialized proxy. Language
-        # services are optional; editor, toolbar and file operations must keep
-        # working while the server restarts.
-        for proxy in self._ls_proxies:
-            if proxy.is_initialized():
-                return proxy
+        """The primary (first registered) language server, if it is ready.
+
+        Features like highlighting, completion and go-to-definition send
+        requests only the main server understands. Never fall back to another
+        server (e.g. Ruff), because it would answer "Unknown request" errors.
+        """
+        if self._ls_proxies and self._ls_proxies[0].is_initialized():
+            return self._ls_proxies[0]
         return None
-
-    def request_language_server_recovery(self, failed_proxy: LanguageServerProxy) -> None:
-        if failed_proxy not in self._ls_proxies:
-            return
-        if self._language_server_recovery_after_id is not None:
-            return
-
-        # Avoid a tight crash/restart loop. Three retries are enough to recover
-        # transient BasedPyright exits while leaving the rest of Softsembly usable.
-        if self._language_server_recovery_attempts >= 3:
-            logger.error("Language server recovery limit reached; continuing without language services")
-            return
-
-        self._language_server_recovery_attempts += 1
-        delay_ms = 500 * self._language_server_recovery_attempts
-        logger.warning(
-            "Scheduling language server recovery attempt %d in %d ms",
-            self._language_server_recovery_attempts,
-            delay_ms,
-        )
-        self._language_server_recovery_after_id = self.after(delay_ms, self._recover_language_servers)
-
-    def _recover_language_servers(self) -> None:
-        self._language_server_recovery_after_id = None
-        try:
-            self.start_or_restart_language_servers()
-        except Exception:
-            logger.exception("Language server recovery failed")
-
-    def language_server_recovered(self, proxy: LanguageServerProxy) -> None:
-        if proxy in self._ls_proxies:
-            self._language_server_recovery_attempts = 0
 
     def get_initialized_ls_proxies(self) -> List[LanguageServerProxy]:
         return [ls_proxy for ls_proxy in self._ls_proxies if ls_proxy.is_initialized()]
 
     def start_or_restart_language_servers(self) -> None:
-        if self._language_server_recovery_after_id is not None:
-            try:
-                self.after_cancel(self._language_server_recovery_after_id)
-            except tk.TclError:
-                pass
-            self._language_server_recovery_after_id = None
-
+        self._cancel_ls_recoveries()
         self.shut_down_language_servers()
-
-        for class_ in self._language_server_proxy_classes:
-            logger.info("Constructing language server %s", class_)
-            ls_proxy = class_(
-                InitializeParams(
-                    capabilities=ClientCapabilities(
-                        workspace=WorkspaceClientCapabilities(
-                            applyEdit=None,
-                            codeLens=None,
-                            fileOperations=None,
-                            inlineValue=None,
-                            inlayHint=None,
-                            diagnostics=None,
-                            # workspaceFolders=True, # TODO: This may require workspace/didChangeWorkspaceFolders to activate Basedpyright?
-                        ),
-                        textDocument=TextDocumentClientCapabilities(
-                            publishDiagnostics=PublishDiagnosticsClientCapabilities(
-                                relatedInformation=False
-                            ),
-                            synchronization=TextDocumentSyncClientCapabilities(),
-                            documentSymbol=DocumentSymbolClientCapabilities(
-                                symbolKind=SymbolKinds(
-                                    [
-                                        SymbolKind.Enum,
-                                        SymbolKind.Class,
-                                        SymbolKind.Method,
-                                        SymbolKind.Property,
-                                        SymbolKind.Function,
-                                    ]
-                                ),
-                                hierarchicalDocumentSymbolSupport=True,
-                            ),
-                            completion=CompletionClientCapabilities(
-                                completionItem=CompletionClientCapabilitiesCompletionItem(
-                                    snippetSupport=False,
-                                    commitCharactersSupport=True,
-                                    documentationFormat=None,  # TODO
-                                    deprecatedSupport=False,  # TODO
-                                    preselectSupport=True,
-                                    insertReplaceSupport=True,
-                                    labelDetailsSupport=False,
-                                ),
-                                completionItemKind=None,  # TODO
-                                insertTextMode=None,
-                                contextSupport=False,
-                                completionList=CompletionClientCapabilitiesCompletionList(
-                                    itemDefaults=["commitCharacters"]
-                                ),
-                            ),
-                            signatureHelp=SignatureHelpClientCapabilities(
-                                signatureInformation=SignatureHelpClientCapabilitiesSignatureInformation(
-                                    documentationFormat=[MarkupKind.PlainText, MarkupKind.Markdown],
-                                    parameterInformation=SignatureHelpClientCapabilitiesParameterInformation(
-                                        labelOffsetSupport=True
-                                    ),
-                                    activeParameterSupport=True,
-                                )
-                            ),
-                            definition=DefinitionClientCapabilities(linkSupport=True),
-                            documentHighlight=DocumentHighlightClientCapabilities(),
-                        ),
-                        notebookDocument=None,
-                        window=WindowClientCapabilities(
-                            workDoneProgress=None,
-                            showMessage=None,
-                            showDocument=None,
-                        ),
-                        general=GeneralClientCapabilities(
-                            staleRequestSupport=None,
-                            regularExpressions=None,
-                            markdown=None,
-                            positionEncodings=[PositionEncodingKind.UTF16],
-                        ),
-                    ),
-                    processId=os.getpid(),
-                    clientInfo=ClientInfo(name="Thonny", version=thonny.get_version()),
-                    locale=self.get_option("general.language"),
-                    workspaceFolders=[
-                        WorkspaceFolder(
-                            uri=pathlib.Path(self.get_local_cwd()).as_uri(), name="localws"
-                        ),
-                    ],
-                    trace=TraceValues.Verbose if self.in_debug_mode() else TraceValues.Messages,
-                )
-            )
-
-            self._ls_proxies.append(ls_proxy)
+        self._ls_proxies = [
+            self._create_ls_proxy(cls) for cls in self._language_server_proxy_classes
+        ]
 
     def shut_down_language_servers(self):
+        self._cancel_ls_recoveries()
         for ls_proxy in self._ls_proxies:
             logger.info("Shutting down language server %s", ls_proxy)
-            ls_proxy.shut_down()
+            try:
+                ls_proxy.shut_down()
+            except Exception:
+                logger.exception("Problem shutting down language server %s", ls_proxy)
 
         self._ls_proxies = []
+
+    def request_language_server_recovery(self, failed_proxy: LanguageServerProxy) -> None:
+        """Called by a proxy whose server process exited unexpectedly."""
+        if failed_proxy not in self._ls_proxies or self._closing:
+            return
+
+        cls = type(failed_proxy)
+        if cls in self._ls_recovery_after_ids:
+            return
+
+        attempts = self._ls_recovery_attempts.get(cls, 0)
+        if attempts >= self.MAX_LS_RECOVERY_ATTEMPTS:
+            logger.error(
+                "%s keeps exiting; giving up after %d restarts. "
+                "Other language services and the rest of the IDE keep working.",
+                cls.__name__,
+                attempts,
+            )
+            return
+
+        attempts += 1
+        self._ls_recovery_attempts[cls] = attempts
+        delay_ms = 500 * attempts
+        logger.warning(
+            "Scheduling %s recovery attempt %d in %d ms", cls.__name__, attempts, delay_ms
+        )
+        self._ls_recovery_after_ids[cls] = self.after(
+            delay_ms, lambda: self._recover_language_server(cls)
+        )
+
+    def _recover_language_server(self, cls: type) -> None:
+        self._ls_recovery_after_ids.pop(cls, None)
+        index = next((i for i, p in enumerate(self._ls_proxies) if type(p) is cls), None)
+        if index is None:
+            return  # servers were restarted or shut down in the meantime
+
+        try:
+            self._ls_proxies[index].shut_down()
+        except Exception:
+            logger.exception("Problem shutting down failed %s", cls.__name__)
+
+        try:
+            # Replace in place so the main server stays at index 0
+            self._ls_proxies[index] = self._create_ls_proxy(cls)
+        except Exception:
+            logger.exception("Could not restart %s", cls.__name__)
+
+    def language_server_recovered(self, proxy: LanguageServerProxy) -> None:
+        """Called when a server finishes initializing.
+
+        The retry budget is only refunded after the server has stayed up for a
+        while, so a server that starts and immediately crashes can't loop forever.
+        """
+
+        def refund_if_still_healthy():
+            if proxy in self._ls_proxies and proxy.is_initialized():
+                self._ls_recovery_attempts.pop(type(proxy), None)
+
+        self.after(self.LS_STABLE_UPTIME_MS, refund_if_still_healthy)
+
+    def _cancel_ls_recoveries(self) -> None:
+        for after_id in self._ls_recovery_after_ids.values():
+            try:
+                self.after_cancel(after_id)
+            except tk.TclError:
+                pass
+        self._ls_recovery_after_ids.clear()
+
+    def _create_ls_proxy(self, cls: Type[LanguageServerProxy]) -> LanguageServerProxy:
+        logger.info("Constructing language server %s", cls)
+        return cls(self._build_ls_initialize_params())
+
+    def _build_ls_initialize_params(self) -> InitializeParams:
+        return InitializeParams(
+            capabilities=ClientCapabilities(
+                workspace=WorkspaceClientCapabilities(
+                    applyEdit=None,
+                    codeLens=None,
+                    fileOperations=None,
+                    inlineValue=None,
+                    inlayHint=None,
+                    diagnostics=None,
+                    # workspaceFolders=True, # TODO: This may require workspace/didChangeWorkspaceFolders to activate Basedpyright?
+                ),
+                textDocument=TextDocumentClientCapabilities(
+                    publishDiagnostics=PublishDiagnosticsClientCapabilities(
+                        relatedInformation=False
+                    ),
+                    synchronization=TextDocumentSyncClientCapabilities(),
+                    documentSymbol=DocumentSymbolClientCapabilities(
+                        symbolKind=SymbolKinds(
+                            [
+                                SymbolKind.Enum,
+                                SymbolKind.Class,
+                                SymbolKind.Method,
+                                SymbolKind.Property,
+                                SymbolKind.Function,
+                            ]
+                        ),
+                        hierarchicalDocumentSymbolSupport=True,
+                    ),
+                    completion=CompletionClientCapabilities(
+                        completionItem=CompletionClientCapabilitiesCompletionItem(
+                            snippetSupport=False,
+                            commitCharactersSupport=True,
+                            documentationFormat=None,  # TODO
+                            deprecatedSupport=False,  # TODO
+                            preselectSupport=True,
+                            insertReplaceSupport=True,
+                            labelDetailsSupport=False,
+                        ),
+                        completionItemKind=None,  # TODO
+                        insertTextMode=None,
+                        contextSupport=False,
+                        completionList=CompletionClientCapabilitiesCompletionList(
+                            itemDefaults=["commitCharacters"]
+                        ),
+                    ),
+                    signatureHelp=SignatureHelpClientCapabilities(
+                        signatureInformation=SignatureHelpClientCapabilitiesSignatureInformation(
+                            documentationFormat=[MarkupKind.PlainText, MarkupKind.Markdown],
+                            parameterInformation=SignatureHelpClientCapabilitiesParameterInformation(
+                                labelOffsetSupport=True
+                            ),
+                            activeParameterSupport=True,
+                        )
+                    ),
+                    definition=DefinitionClientCapabilities(linkSupport=True),
+                    documentHighlight=DocumentHighlightClientCapabilities(),
+                ),
+                notebookDocument=None,
+                window=WindowClientCapabilities(
+                    workDoneProgress=None,
+                    showMessage=None,
+                    showDocument=None,
+                ),
+                general=GeneralClientCapabilities(
+                    staleRequestSupport=None,
+                    regularExpressions=None,
+                    markdown=None,
+                    positionEncodings=[PositionEncodingKind.UTF16],
+                ),
+            ),
+            processId=os.getpid(),
+            clientInfo=ClientInfo(name="Thonny", version=thonny.get_version()),
+            locale=self.get_option("general.language"),
+            workspaceFolders=[
+                WorkspaceFolder(uri=pathlib.Path(self.get_local_cwd()).as_uri(), name="localws"),
+            ],
+            trace=TraceValues.Verbose if self.in_debug_mode() else TraceValues.Messages,
+        )
 
     def _init_language(self) -> None:
         """Initialize language."""
@@ -2163,8 +2211,21 @@ class Workbench(tk.Tk):
             if not os.path.isfile(path):
                 continue
 
-            self.get_editor_notebook().show_file(path)
-            opened = True
+            # TkDND on Windows delivers paths with forward slashes ("D:/dir/a.py").
+            # Thonny's path/URI detection only recognizes native "D:\dir\a.py", so an
+            # unnormalized path gets misread as a URI with scheme "d". Normalizing
+            # also gives the editor a canonical path, so re-dropping an already
+            # open file focuses its tab instead of opening a duplicate.
+            path = os.path.normpath(os.path.abspath(path))
+
+            try:
+                self.get_editor_notebook().show_file(path)
+                opened = True
+            except Exception:
+                # A drop is a convenience gesture; never turn a bad drop into an
+                # "Internal Tk error" dialog.
+                logger.exception("Could not open dropped file %r", path)
+                self.set_status_message(f"Could not open {os.path.basename(path)}")
 
         return self._external_dnd_copy if opened else self._external_dnd_refuse
 
@@ -2531,9 +2592,14 @@ class Workbench(tk.Tk):
         # v0.2-v0.6 used 1.25 as Softsembly's hard-coded default. Migrate that
         # old default to automatic DPI-aware scaling so existing installs benefit
         # from the laptop / HiDPI fix without requiring a settings change.
-        if running_on_windows() and str(scaling) == "1.25":
-            scaling = "auto"
-            self.set_option("general.scaling", "auto")
+        # This runs only once per profile; afterwards 1.25 is a legitimate
+        # manual choice and must be respected.
+        self.set_default("general.scaling_migrated_to_auto", False)
+        if not self.get_option("general.scaling_migrated_to_auto"):
+            if running_on_windows() and str(scaling) == "1.25":
+                scaling = "auto"
+                self.set_option("general.scaling", "auto")
+            self.set_option("general.scaling_migrated_to_auto", True)
 
         if scaling in ["default", "auto"]:
             self._scaling_factor = self._default_scaling_factor

@@ -1,6 +1,5 @@
 import tkinter as tk
 from logging import getLogger
-from tkinter import messagebox
 from typing import Optional
 
 from thonny import editor_helpers, get_workbench
@@ -8,6 +7,7 @@ from thonny.codeview import CodeViewText, SyntaxText
 from thonny.editor_helpers import DocuBoxBase, get_active_text_widget
 from thonny.editors import Editor
 from thonny.languages import tr
+from thonny.lsp_proxy import report_background_ls_error
 from thonny.lsp_types import (
     LspResponse,
     SignatureHelp,
@@ -190,9 +190,7 @@ class Calltipper:
 
         if response.get_error():
             self._hide_box()
-            messagebox.showerror(
-                "Calltip error", response.get_error().message, master=get_workbench()
-            )
+            report_background_ls_error("Calltip", response.get_error())
             return
 
         result = response.get_result_or_raise()

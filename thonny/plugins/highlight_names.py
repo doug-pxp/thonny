@@ -1,14 +1,13 @@
 import time
 import tkinter as tk
 from logging import getLogger
-from tkinter import messagebox
 from typing import List, Union
 
 from thonny import get_runner, get_workbench, lsp_types
 from thonny.codeview import SyntaxText
 from thonny.editor_helpers import get_cursor_ls_position
 from thonny.editors import Editor
-from thonny.languages import tr
+from thonny.lsp_proxy import report_background_ls_error
 from thonny.lsp_types import DocumentHighlightParams, LspResponse, TextDocumentIdentifier
 
 logger = getLogger(__name__)
@@ -90,7 +89,7 @@ class OccurrencesHighlighter:
     ) -> None:
         error = response.get_error()
         if error:
-            messagebox.showerror(tr("Error"), str(error), master=get_workbench())
+            report_background_ls_error("Name highlighting", error)
             return
 
         # TODO: check if the situation is still the same

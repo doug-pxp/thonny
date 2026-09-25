@@ -1,5 +1,5 @@
-SOFTSEMBLY v0.5 — WINDOWS INSTALLER BUILD
-=========================================
+SOFTSEMBLY — WINDOWS INSTALLER BUILD
+====================================
 
 FAST PATH
 ---------
@@ -8,25 +8,32 @@ From the repository root, double-click:
     packaging\windows\BUILD_WINDOWS_INSTALLER.bat
 
 The script will:
-1. Find your Python 3.14 development installation.
-2. Install Inno Setup 6 with winget if needed.
-3. Copy Python into a private Softsembly runtime.
-4. Install Softsembly's dependencies into that private runtime.
-5. Install the CURRENT LOCAL Softsembly source tree.
-6. Verify the packaged runtime and BasedPyright.
-7. Create a Windows installer.
+1. Read the version from thonny\softsembly.py (APP_VERSION).
+2. Find your Python 3.14 development installation.
+3. Install Inno Setup 6 with winget if needed.
+4. Copy Python into a private Softsembly runtime.
+5. Install Thonny's bundle requirements plus packaging\requirements-softsembly.txt
+   (basedpyright, ruff, tkinterdnd2), and ..\minny if that checkout exists.
+6. Install the CURRENT LOCAL Softsembly source tree.
+7. Smoke-test the packaged runtime.
+8. Create a Windows installer.
 
 OUTPUT
 ------
-    packaging\windows\dist\Softsembly-Setup-0.5.0-x64.exe
+    packaging\windows\dist\Softsembly-Setup-<version>-x64.exe
+
+RELEASING A NEW VERSION
+-----------------------
+Change APP_VERSION in thonny\softsembly.py and add an entry to
+SOFTSEMBLY_CHANGELOG.md. Nothing else needs to be edited.
 
 IMPORTANT
 ---------
-Python is required only on the developer machine to BUILD this v0.5 installer.
+Python is required only on the developer machine to BUILD the installer.
 The customer installer contains its own private Python runtime.
 
-v0.5 is intentionally unsigned. Windows SmartScreen may warn when testing a downloaded copy.
-Code signing is a later release-hardening step.
+The installer is unsigned. Windows SmartScreen may warn when testing a
+downloaded copy. Code signing is a later release-hardening step.
 
 CUSTOM PYTHON LOCATION
 ----------------------

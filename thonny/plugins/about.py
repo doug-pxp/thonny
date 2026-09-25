@@ -9,7 +9,7 @@ from logging import getLogger
 from tkinter import ttk
 
 import thonny
-from thonny import get_workbench, ui_utils
+from thonny import get_workbench, softsembly, ui_utils
 from thonny.common import get_python_version_string
 from thonny.languages import tr
 from thonny.ui_utils import CommonDialog, CommonDialogEx, create_url_label, get_hyperlink_cursor
@@ -28,19 +28,23 @@ class AboutDialog(CommonDialogEx):
         heading_font = default_heading_font.copy()
         heading_font.configure(size=int(default_heading_font["size"] * 1.7), weight="bold")
         heading_label = ttk.Label(
-            self.main_frame, text="Softsembly " + thonny.get_version(), font=heading_font
+            self.main_frame, text=softsembly.get_display_version(), font=heading_font
         )
         heading_label.grid(pady=(self.get_large_padding(), self.get_small_padding()))
 
         brand_label = ttk.Label(
             self.main_frame,
-            text="by ProgrammingXP\nBuilt on the open-source Thonny IDE",
+            text=f"by {softsembly.PUBLISHER}\n"
+            f"Built on the open-source {softsembly.UPSTREAM_NAME} IDE ({thonny.get_version()})",
             justify=tk.CENTER,
         )
         brand_label.grid()
 
         url_label = create_url_label(
-            self.main_frame, "https://github.com/thonny/thonny", "Original Thonny project", justify=tk.CENTER
+            self.main_frame,
+            softsembly.UPSTREAM_URL,
+            f"Original {softsembly.UPSTREAM_NAME} project",
+            justify=tk.CENTER,
         )
         url_label.grid(pady=(self.get_small_padding(), 0))
 
@@ -87,10 +91,7 @@ class AboutDialog(CommonDialogEx):
         credits_label = create_url_label(
             self.main_frame,
             "https://github.com/thonny/thonny/blob/master/CREDITS.rst",
-            tr(
-                "Thonny upstream credits\n"
-                + "Aivar Annamaa and the open-source contributors"
-            ),
+            tr("Thonny upstream credits\n" + "Aivar Annamaa and the open-source contributors"),
             justify=tk.CENTER,
         )
         credits_label.grid()

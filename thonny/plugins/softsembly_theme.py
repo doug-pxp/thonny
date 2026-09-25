@@ -10,25 +10,25 @@ from copy import deepcopy
 from thonny import get_workbench
 from thonny.plugins.base_syntax_themes import default_dark
 from thonny.plugins.clean_ui_themes import clean
-
-
-# Softsembly product palette. ProgrammingXP remains the umbrella brand; Softsembly
-# uses yellow + green as its primary product accents on a dark graphite foundation.
-SOFTSEMBLY_YELLOW = "#FFE29A"
-SOFTSEMBLY_GREEN = "#79F56B"
-PXP_PURPLE = "#A99BFF"
-PXP_CYAN = "#62DFE8"
-PXP_PINK = "#FF8098"
-
-BACKGROUND = "#171719"
-EDITOR_BACKGROUND = "#141416"
-PANEL = "#1E1E22"
-ELEVATED = "#232329"
-BORDER = "#303038"
-PRIMARY_TEXT = "#F5F5F6"
-SECONDARY_TEXT = "#A6A6AF"
-DISABLED_TEXT = "#686872"
-ERROR = "#F26B6B"
+from thonny.softsembly import (
+    BACKGROUND,
+    BORDER,
+    DISABLED_TEXT,
+    EDITOR_BACKGROUND,
+    ELEVATED,
+    ERROR,
+)
+from thonny.softsembly import GREEN as SOFTSEMBLY_GREEN
+from thonny.softsembly import (
+    MUTED_TEXT,
+    PANEL,
+    PRIMARY_TEXT,
+    PXP_CYAN,
+    PXP_PINK,
+    PXP_PURPLE,
+    SECONDARY_TEXT,
+)
+from thonny.softsembly import YELLOW as SOFTSEMBLY_YELLOW
 
 
 def softsembly_syntax():
@@ -39,7 +39,7 @@ def softsembly_syntax():
         insertbackground=SOFTSEMBLY_YELLOW,
         background=EDITOR_BACKGROUND,
     )
-    theme["GUTTER"].update(foreground="#72727D", background=BACKGROUND)
+    theme["GUTTER"].update(foreground=MUTED_TEXT, background=BACKGROUND)
     theme["current_line"].update(background="#1D1D21")
     theme["sel"].update(foreground=PRIMARY_TEXT, background="#49442D")
 
@@ -53,7 +53,7 @@ def softsembly_syntax():
     theme["open_string"].update(foreground=SOFTSEMBLY_GREEN, background="#203521")
     theme["open_string3"].update(foreground=SOFTSEMBLY_GREEN, background="#203521")
     theme["number"].update(foreground=SOFTSEMBLY_YELLOW)
-    theme["comment"].update(foreground="#72727D")
+    theme["comment"].update(foreground=MUTED_TEXT)
     theme["welcome"].update(foreground=SOFTSEMBLY_YELLOW)
     theme["magic"].update(foreground=PXP_PINK)
 
@@ -67,7 +67,7 @@ def softsembly_syntax():
 
     theme["surrounding_parens"].update(foreground=SOFTSEMBLY_YELLOW, font="BoldEditorFont")
     theme["matched_name"].update(background="#30302A")
-    theme["current_found"].update(foreground="#171719", background=SOFTSEMBLY_YELLOW)
+    theme["current_found"].update(foreground=BACKGROUND, background=SOFTSEMBLY_YELLOW)
 
     return theme
 

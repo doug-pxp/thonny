@@ -287,6 +287,9 @@ def configure_logging(log_file, console_level=None):
             logger.addHandler(console_handler)
 
     # Log most important info as soon as possible
+    from thonny import softsembly
+
+    main_logger.info("%s", softsembly.get_display_version())
     main_logger.info("Thonny version: %s", get_version())
     main_logger.info("cwd: %s", os.getcwd())
     main_logger.info("original argv: %s", sys.orig_argv)

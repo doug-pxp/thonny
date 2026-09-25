@@ -1,0 +1,10 @@
+# Softsembly-specific runtime packages, installed on top of Thonny's
+# requirements-regular-bundle.txt by windows/BUILD_WINDOWS_INSTALLER.ps1.
+# Kept in a separate file so upstream's bundle list can be merged cleanly.
+
+# Main language server (autocomplete, diagnostics, highlighting, go-to-definition)
+basedpyright
+# Linter language server. If this is missing, Softsembly simply disables Ruff.
+ruff
+# Drag Python files from Explorer onto the editor. Optional; the IDE works without it.
+tkinterdnd2

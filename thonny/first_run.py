@@ -4,7 +4,9 @@ import tkinter.font as tk_font
 from logging import getLogger
 from tkinter import ttk
 
-from thonny import is_portable, languages, ui_utils
+from thonny import is_portable, languages
+from thonny import softsembly as palette
+from thonny import ui_utils
 
 logger = getLogger(__name__)
 
@@ -24,13 +26,13 @@ class FirstRunWindow(tk.Tk):
         style.theme_use("clam")
 
         # Keep the very first launch visually consistent with Softsembly's dark product theme.
-        background = "#171719"
-        panel = "#1E1E22"
-        border = "#303038"
-        primary_text = "#F5F5F6"
-        secondary_text = "#A6A6AF"
-        yellow = "#FFE29A"
-        green = "#79F56B"
+        background = palette.BACKGROUND
+        panel = palette.PANEL
+        border = palette.BORDER
+        primary_text = palette.PRIMARY_TEXT
+        secondary_text = palette.SECONDARY_TEXT
+        yellow = palette.YELLOW
+        green = palette.GREEN
 
         # Make first-launch controls readable even before the main workbench has
         # initialized its UI scaling settings.
@@ -55,7 +57,11 @@ class FirstRunWindow(tk.Tk):
         )
         style.map(
             "Softsembly.TButton",
-            background=[("active", "#F4D378"), ("pressed", green), ("disabled", border)],
+            background=[
+                ("active", palette.YELLOW_ACTIVE),
+                ("pressed", green),
+                ("disabled", border),
+            ],
             foreground=[("disabled", secondary_text)],
         )
         style.configure(
@@ -78,7 +84,9 @@ class FirstRunWindow(tk.Tk):
             selectforeground=[("readonly", primary_text)],
         )
 
-        self.title("Welcome to Softsembly!" + "   [portable]" if is_portable() else "")
+        # NB! Parenthesized on purpose: without the parentheses the conditional
+        # expression swallows the whole concatenation and the title is empty.
+        self.title(f"Welcome to {palette.APP_NAME}!" + ("   [portable]" if is_portable() else ""))
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         self.ok = False
 
@@ -117,11 +125,17 @@ class FirstRunWindow(tk.Tk):
             foreground=green,
         )
         ready_label.grid(
-            row=2, column=2, columnspan=2,
-            padx=(0, self.padx), pady=(self.pady * 0.5, 0), sticky="w"
+            row=2,
+            column=2,
+            columnspan=2,
+            padx=(0, self.padx),
+            pady=(self.pady * 0.5, 0),
+            sticky="w",
         )
 
-        ok_button = ttk.Button(self.main_frame, text="Let's go!", command=self.on_ok, style="Softsembly.TButton")
+        ok_button = ttk.Button(
+            self.main_frame, text="Let's go!", command=self.on_ok, style="Softsembly.TButton"
+        )
         ok_button.grid(
             row=3, column=3, padx=(0, self.padx), pady=(self.pady * 0.7, self.pady), sticky="se"
         )

@@ -1097,12 +1097,21 @@ class LanguageServerProxy(ABC):
     def _process_messages_from_server(self) -> None:
         while not self._unprocessed_messages_from_server.empty():
             msg = self._unprocessed_messages_from_server.get()
+            if msg is None:
+                continue
             try:
                 self._handle_message_from_server(msg)
             except Exception:
+                # Language services are optional editor helpers. A failure while
+                # handling one message must not interrupt the learner with a modal
+                # "Internal error" dialog; log it and note it in the status bar.
                 logger.exception("Failed processing message %r", msg)
-                # TODO: make it less invasive?
-                get_workbench().report_exception()
+                try:
+                    get_workbench().set_status_message(
+                        "Language service hiccup (details in frontend.log)"
+                    )
+                except Exception:
+                    pass
 
     def _send_request(
         self, method: str, params: Any, handler: Callable[[LspResponse[Any]], None]
@@ -1173,7 +1182,11 @@ class LanguageServerProxy(ABC):
             self._proc.stdin.write(json_bytes)
             self._proc.stdin.flush()
         except (BrokenPipeError, OSError, ValueError):
-            logger.warning("Language server connection closed while sending %r", msg.get("method"), exc_info=True)
+            logger.warning(
+                "Language server connection closed while sending %r",
+                msg.get("method"),
+                exc_info=True,
+            )
             self._handle_unexpected_server_exit()
 
     def _server_process_alive(self) -> bool:
@@ -1184,6 +1197,11 @@ class LanguageServerProxy(ABC):
         try:
             while self._server_process_alive():
                 msg = _read_json_rpc_message(self._proc)
+                if msg is None:
+                    # EOF: the server closed its stdout. Without this break the
+                    # loop spins (queueing None) until the OS reaps the process,
+                    # and a queued None later blows up message handling.
+                    break
                 self._unprocessed_messages_from_server.put(msg)
         except Exception:
             logger.exception("_listen_stdout failed")
@@ -1194,7 +1212,11 @@ class LanguageServerProxy(ABC):
         try:
             while self._server_process_alive():
                 line = self._proc.stderr.readline()
-                logger.error("Language server STDERR: %s", line.decode("utf-8"))
+                if not line:
+                    break  # EOF; avoid a busy loop of empty log lines
+                text = line.decode("utf-8", errors="replace").rstrip()
+                if text:
+                    logger.error("Language server STDERR: %s", text)
         except Exception:
             logger.exception("_listen_stderr failed")
         logger.info("_listen_stderr done")
@@ -1280,6 +1302,38 @@ class LanguageServerProxy(ABC):
 
     @abstractmethod
     def get_supported_language_ids(self) -> typing.Set[str]: ...
+
+
+# JSON-RPC / LSP error codes that are a normal part of interactive editing:
+# the document changed or the request was superseded before the server answered.
+_ROUTINE_LSP_ERROR_CODES = {
+    -32800,  # RequestCancelled
+    -32801,  # ContentModified
+    -32802,  # ServerCancelled
+    -32803,  # RequestFailed (stale request on an older document version)
+    -32601,  # MethodNotFound (server doesn't implement this optional feature)
+}
+
+
+def report_background_ls_error(feature: str, error: Any) -> None:
+    """Report an LSP error from a feature the user didn't explicitly ask for.
+
+    Highlighting, calltips and completion are triggered by typing and cursor
+    movement. Showing a modal dialog for their failures interrupts learners for
+    something they can't act on, so routine errors are only logged and anything
+    else goes to the status bar.
+    """
+    code = getattr(error, "code", None)
+    message = getattr(error, "message", None) or str(error)
+    if code in _ROUTINE_LSP_ERROR_CODES:
+        logger.debug("%s: routine language-server error %r", feature, error)
+        return
+
+    logger.warning("%s: language-server error %r", feature, error)
+    try:
+        get_workbench().set_status_message(f"{feature}: {message}")
+    except Exception:
+        pass
 
 
 def _read_json_rpc_message(proc: subprocess.Popen) -> Optional[Dict]:

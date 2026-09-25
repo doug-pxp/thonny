@@ -1,12 +1,12 @@
 import tkinter as tk
 from logging import getLogger
-from tkinter import messagebox
 from typing import List, Optional, Union, cast
 
 from thonny import editor_helpers, get_runner, get_workbench, lsp_types
 from thonny.codeview import CodeViewText, SyntaxText, get_syntax_options_for_tag
 from thonny.editor_helpers import DocuBox, EditorInfoBox
 from thonny.languages import tr
+from thonny.lsp_proxy import report_background_ls_error
 from thonny.lsp_types import CompletionItem, CompletionParams, LspResponse, TextDocumentIdentifier
 from thonny.misc_utils import running_on_mac_os
 from thonny.shell import ShellText
@@ -525,7 +525,7 @@ class Completer:
         error = response.get_error()
         if error is not None:
             self._close_box()
-            messagebox.showerror("Autocomplete error", error.message, master=get_workbench())
+            report_background_ls_error("Autocomplete", error)
             return
 
         if not self._last_request_text:

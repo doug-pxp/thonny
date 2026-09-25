@@ -5,11 +5,14 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Root = (Resolve-Path (Join-Path $ScriptDir '..\..')).Path
 $BuildDir = Join-Path $ScriptDir 'build'
 $DistDir = Join-Path $ScriptDir 'dist'
-$Version = '0.5.0'
+# Single source of truth for the version: thonny/softsembly.py
+$VersionLine = Select-String -Path (Join-Path $Root 'thonny\softsembly.py') -Pattern '^APP_VERSION\s*=\s*"([^"]+)"'
+if (-not $VersionLine) { throw 'Could not read APP_VERSION from thonny\softsembly.py' }
+$Version = $VersionLine.Matches[0].Groups[1].Value
 
 Write-Host ''
 Write-Host '============================================' -ForegroundColor Yellow
-Write-Host ' Softsembly v0.5 Windows Installer Builder' -ForegroundColor Yellow
+Write-Host " Softsembly $Version Windows Installer Builder" -ForegroundColor Yellow
 Write-Host '============================================' -ForegroundColor Yellow
 Write-Host ''
 
@@ -110,8 +113,20 @@ if ($LASTEXITCODE) { throw 'Could not bootstrap pip in bundled Python.' }
 if ($LASTEXITCODE) { throw 'Could not prepare pip in bundled Python.' }
 & $BundledPython -s -m pip install --disable-pip-version-check --no-warn-script-location --no-cache-dir -r (Join-Path $Root 'packaging\requirements-regular-bundle.txt')
 if ($LASTEXITCODE) { throw 'Could not install Softsembly runtime dependencies.' }
-& $BundledPython -s -m pip install --disable-pip-version-check --no-warn-script-location --no-cache-dir basedpyright
-if ($LASTEXITCODE) { throw 'Could not install BasedPyright.' }
+& $BundledPython -s -m pip install --disable-pip-version-check --no-warn-script-location --no-cache-dir -r (Join-Path $Root 'packaging\requirements-softsembly.txt')
+if ($LASTEXITCODE) { throw 'Could not install Softsembly language services (basedpyright, ruff, tkinterdnd2).' }
+
+# Thonny's uv.lock expects the 'minny' library from a sibling checkout (..\minny).
+# The PyPI release is older and lacks minny.target, which the micro:bit / Pico
+# plugins need. Use the sibling checkout when it exists.
+$Minny = Join-Path (Split-Path -Parent $Root) 'minny'
+if (Test-Path (Join-Path $Minny 'pyproject.toml')) {
+    Write-Host "Installing minny from $Minny" -ForegroundColor Cyan
+    & $BundledPython -s -m pip install --disable-pip-version-check --no-warn-script-location --no-cache-dir $Minny
+    if ($LASTEXITCODE) { throw 'Could not install local minny checkout.' }
+} else {
+    Write-Host 'NOTE: ..\minny not found; using PyPI minny. micro:bit / Pico plugins will be unavailable.' -ForegroundColor Yellow
+}
 
 Write-Host '[3/6] Installing THIS Softsembly source tree...' -ForegroundColor Green
 & $BundledPython -s -m pip install --disable-pip-version-check --no-warn-script-location --no-cache-dir $Root
@@ -120,14 +135,14 @@ if ($LASTEXITCODE) { throw 'Could not install local Softsembly source.' }
 Write-Host '[4/6] Adding licenses and Softsembly metadata...' -ForegroundColor Green
 Copy-Item (Join-Path $Root 'LICENSE.txt') $BuildDir -Force
 Copy-Item (Join-Path $Root 'THIRD_PARTY_NOTICES.txt') $BuildDir -Force
-Copy-Item (Join-Path $Root 'SOFTSEMBLY_VERSION.txt') $BuildDir -Force
-Copy-Item (Join-Path $Root 'SOFTSEMBLY_REVISION.txt') $BuildDir -Force
+Copy-Item (Join-Path $Root 'SOFTSEMBLY_CHANGELOG.md') $BuildDir -Force
+Set-Content -Path (Join-Path $BuildDir 'SOFTSEMBLY_VERSION.txt') -Value "Softsembly $Version" -Encoding UTF8
 if (Test-Path (Join-Path $Root 'licenses')) {
     Copy-Item (Join-Path $Root 'licenses') (Join-Path $BuildDir 'licenses') -Recurse -Force
 }
 
 Write-Host '[5/6] Running bundled-runtime smoke test...' -ForegroundColor Green
-& $BundledPython -s -c "import thonny, basedpyright; print('Softsembly runtime OK'); print(thonny.__file__)"
+& $BundledPython -s -c "import thonny, basedpyright, ruff, tkinterdnd2; from thonny import softsembly; print(softsembly.get_display_version(), 'runtime OK'); print(thonny.__file__)"
 if ($LASTEXITCODE) { throw 'Bundled runtime smoke test failed.' }
 $bp = Join-Path $BuildDir 'Scripts\basedpyright-langserver.exe'
 if (-not (Test-Path $bp)) { throw "BasedPyright launcher missing from bundled runtime: $bp" }
@@ -151,4 +166,4 @@ Write-Host '  3. Launch it from the Start menu.'
 Write-Host '  4. Create calculator.py.'
 Write-Host '  5. Test Run, input(), Save, close, and reopen.'
 Write-Host ''
-Write-Host 'NOTE: v0.5 is unsigned, so Windows SmartScreen may warn during testing.' -ForegroundColor Yellow
+Write-Host 'NOTE: this build is unsigned, so Windows SmartScreen may warn during testing.' -ForegroundColor Yellow
