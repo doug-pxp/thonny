@@ -26,6 +26,9 @@ from thonny.softsembly import (
     PXP_CYAN,
     PXP_PINK,
     PXP_PURPLE,
+    SCROLLBAR_THUMB,
+    SCROLLBAR_THUMB_ACTIVE,
+    SCROLLBAR_THUMB_PRESSED,
     SECONDARY_TEXT,
 )
 from thonny.softsembly import YELLOW as SOFTSEMBLY_YELLOW
@@ -72,23 +75,46 @@ def softsembly_syntax():
     return theme
 
 
+def _apply_green_scrollbars(settings) -> None:
+    """Light-green scrollbar thumbs on the dark track.
+
+    In the clam-based theme the thumb is drawn with `background`; its edges use
+    `lightcolor`/`darkcolor`, so those follow the thumb color too, giving a flat,
+    solid thumb. Order matters in ttk state maps: the first matching state wins.
+    """
+    thumb_states = [
+        ("pressed", SCROLLBAR_THUMB_PRESSED),
+        ("active", SCROLLBAR_THUMB_ACTIVE),
+        ("!disabled", SCROLLBAR_THUMB),
+    ]
+
+    vertical_map = settings["TScrollbar"]["map"]
+    vertical_map["background"] = thumb_states + [("disabled", PANEL)]
+    vertical_map["lightcolor"] = thumb_states + [("disabled", PANEL)]
+    vertical_map["darkcolor"] = thumb_states + [("disabled", PANEL)]
+
+    # Horizontal scrollbars stay invisible while disabled (nothing to scroll).
+    horizontal_map = settings["Horizontal.TScrollbar"]["map"]
+    horizontal_map["background"] = [("disabled", BACKGROUND)] + thumb_states
+    horizontal_map["lightcolor"] = [("disabled", BACKGROUND)] + thumb_states
+    horizontal_map["darkcolor"] = [("disabled", BACKGROUND)] + thumb_states
+
+
 def load_plugin() -> None:
     dark_images = {"tab-close-active": "tab-close-active-dark"}
 
-    get_workbench().add_ui_theme(
-        "Softsembly Dark",
-        "Enhanced Clam",
-        clean(
-            frame_background=BACKGROUND,
-            text_background=PANEL,
-            normal_detail=ELEVATED,
-            high_detail="#4A452E",
-            low_detail=BORDER,
-            normal_foreground=SECONDARY_TEXT,
-            high_foreground=PRIMARY_TEXT,
-            low_foreground=DISABLED_TEXT,
-        ),
-        images=dark_images,
+    settings = clean(
+        frame_background=BACKGROUND,
+        text_background=PANEL,
+        normal_detail=ELEVATED,
+        high_detail="#4A452E",
+        low_detail=BORDER,
+        normal_foreground=SECONDARY_TEXT,
+        high_foreground=PRIMARY_TEXT,
+        low_foreground=DISABLED_TEXT,
     )
+    _apply_green_scrollbars(settings)
+
+    get_workbench().add_ui_theme("Softsembly Dark", "Enhanced Clam", settings, images=dark_images)
 
     get_workbench().add_syntax_theme("Softsembly Dark", "Default Dark", softsembly_syntax)

@@ -7,7 +7,7 @@ can import it cheaply and early.
 """
 
 APP_NAME = "Softsembly"
-APP_VERSION = "0.7.1"
+APP_VERSION = "0.8.0"
 PUBLISHER = "ProgrammingXP"
 UPSTREAM_NAME = "Thonny"
 UPSTREAM_URL = "https://github.com/thonny/thonny"
@@ -32,6 +32,11 @@ SECONDARY_TEXT = "#A6A6AF"
 DISABLED_TEXT = "#686872"
 MUTED_TEXT = "#72727D"
 ERROR = "#F26B6B"
+
+# Scrollbar thumb (the draggable part). Light green, brightening on hover/drag.
+SCROLLBAR_THUMB = "#A8E6A1"
+SCROLLBAR_THUMB_ACTIVE = "#C4F2BE"
+SCROLLBAR_THUMB_PRESSED = GREEN
 
 
 def get_display_version() -> str:

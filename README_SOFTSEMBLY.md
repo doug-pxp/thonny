@@ -14,7 +14,7 @@ py -3.14 -m venv .venv
 .\.venv\Scripts\python.exe -m thonny
 ```
 
-`python -m thonny --version` should print `Softsembly 0.7.0 (Thonny ...)`.
+`python -m thonny --version` should print `Softsembly 0.8.0 (Thonny ...)`.
 
 ## Where Softsembly-specific code lives
 
@@ -26,6 +26,8 @@ py -3.14 -m venv .venv
 | First-run window | `thonny/first_run.py` |
 | Language-server recovery | `thonny/workbench.py` ("Language servers" section), `thonny/lsp_proxy.py` |
 | BasedPyright discovery | `thonny/plugins/basedpyright.py` |
+| GUI Preview panel | `thonny/plugins/softsembly_preview.py` |
+| GUI Preview runner (runs in the student's Python) | `thonny/softsembly_preview_bootstrap.py` |
 | Installer | `packaging/windows/` |
 
 Logs: `%APPDATA%\Softsembly\frontend.log` (the settings folder is

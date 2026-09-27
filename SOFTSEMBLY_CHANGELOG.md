@@ -4,6 +4,34 @@ Softsembly is a ProgrammingXP fork of the open-source Thonny IDE (MIT).
 Upstream history is in `CHANGELOG.rst`; this file tracks only Softsembly changes.
 The version number lives in one place: `thonny/softsembly.py` (`APP_VERSION`).
 
+## 0.8.0 — Live GUI Preview
+
+- New **GUI Preview** panel (View → GUI Preview; on by default, top right). It
+  shows a tkinter/turtle program's window inside the IDE and refreshes it as you
+  type (after a 0.7 s pause). The preview is interactive: you can click buttons
+  and type into fields. The Run button is unchanged and still does the real run.
+- The preview runs in a separate, throwaway process
+  (`thonny/softsembly_preview_bootstrap.py`). Its window is embedded into the
+  panel with Tk's `use=` option, so the student's code runs unchanged.
+- Syntax errors keep the last working preview up, with a yellow note.
+  Runtime errors show in red with the line number; clicking the message jumps
+  the editor to that line. After a startup error, the part of the window built
+  before the crash stays visible.
+- A heartbeat (a Tk timer that only fires while the window's event loop runs)
+  detects frozen programs. The preview stops after 5 s without a heartbeat,
+  whether the code is stuck before the window appears, in setup code, or in a
+  button handler. Slow animations (e.g. turtle drawing) keep beating and are
+  not killed.
+- `input()` returns an empty string in the preview, with a note to press Run.
+- The side panel widens once per file to fit the app (never past 45% of the
+  window, never shrinking a width you chose).
+- Uses the backend's Python, so packages installed for students' programs
+  work in the preview too.
+
+UI
+- Scrollbars are light green (`SCROLLBAR_THUMB*` in `thonny/softsembly.py`),
+  brightening on hover and turning Softsembly green while dragging.
+
 ## 0.7.1 — Drag-and-drop fix
 
 - Fixed "Internal Tk error: Unsupported URI scheme 'd'" when dragging a file
