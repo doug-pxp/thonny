@@ -14,7 +14,7 @@ py -3.14 -m venv .venv
 .\.venv\Scripts\python.exe -m thonny
 ```
 
-`python -m thonny --version` should print `Softsembly 0.8.0 (Thonny ...)`.
+`python -m thonny --version` should print `Softsembly 0.8.2 (Thonny ...)`.
 
 ## Where Softsembly-specific code lives
 

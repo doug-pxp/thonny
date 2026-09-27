@@ -81,6 +81,8 @@ class PreviewView(ttk.Frame):
         self._showing_error = False
         self._auto_fitted_paths: set = set()
         self._display_path = ""
+        self._app_size = None  # (width, height) reported by the running app
+        self._notices: list = []
 
         self._init_widgets()
 
@@ -139,6 +141,12 @@ class PreviewView(ttk.Frame):
             STATUS_WARN: palette.YELLOW,
             STATUS_ERROR: palette.ERROR,
         }
+
+    def _show_live_status(self) -> None:
+        text = "Live preview. Press Run to test it for real."
+        if self._notices:
+            text += "\n" + "\n".join(self._notices)
+        self._set_status(text, STATUS_OK)
 
     def _set_status(self, text: str, kind: str = STATUS_INFO, line: Optional[int] = None) -> None:
         self._error_line = line
@@ -237,6 +245,8 @@ class PreviewView(ttk.Frame):
         self._responsive = False
         self._showing_error = False
         self._stderr_tail = []
+        self._app_size = None
+        self._notices = []
         self._last_launched_source = source
         self._display_path = display_path
 
@@ -300,10 +310,30 @@ class PreviewView(ttk.Frame):
         self._watchdog_id = self.after(self.WINDOW_TIMEOUT_MS, lambda: self._watchdog(generation))
         self._poll_id = self.after(self.POLL_MS, self._poll)
 
+    def _apply_app_size(self, width, height) -> None:
+        """Size the host frame to the app's natural size (sent with each heartbeat).
+
+        Setting it explicitly also works around Windows, where Tk doesn't pass an
+        embedded window's size to its host frame and would squeeze the app to the
+        panel instead. Because heartbeats repeat, the preview follows the app as
+        its content grows or shrinks.
+        """
+        if not width or not height or self._container is None:
+            return
+        size = (int(width), int(height))
+        if size == self._app_size:
+            return
+        self._app_size = size
+        self._canvas.itemconfigure(self._container_item, width=size[0], height=size[1])
+        self._update_scrollregion()
+
     def _update_scrollregion(self, event=None) -> None:
         if self._container is None:
             return
-        width, height = self._container.winfo_reqwidth(), self._container.winfo_reqheight()
+        if self._app_size:
+            width, height = self._app_size
+        else:
+            width, height = self._container.winfo_reqwidth(), self._container.winfo_reqheight()
         self._canvas.configure(scrollregion=(0, 0, width, height))
         if width > 1:
             self._fit_panel_width(width)
@@ -373,12 +403,13 @@ class PreviewView(ttk.Frame):
             self._restart_watchdog(self.HEARTBEAT_TIMEOUT_MS)
         elif event == "alive":
             self._restart_watchdog(self.HEARTBEAT_TIMEOUT_MS)
+            self._apply_app_size(msg.get("width"), msg.get("height"))
             if not self._responsive:
                 self._responsive = True
                 # After a startup error the bootstrap still runs the event loop to
                 # keep the partial window visible; don't hide the error message.
                 if not self._showing_error:
-                    self._set_status("Live preview. Press Run to test it for real.", STATUS_OK)
+                    self._show_live_status()
         elif event == "error":
             self._showing_error = True
             line = msg.get("line")
@@ -388,8 +419,12 @@ class PreviewView(ttk.Frame):
                 f"{prefix}{where}{msg.get('type')}: {msg.get('message')}", STATUS_ERROR, line=line
             )
         elif event == "notice":
-            if self._status.cget("text").startswith("Live preview"):
-                self._set_status(msg.get("message", ""), STATUS_INFO)
+            note = msg.get("message", "")
+            if note and note not in self._notices:
+                self._notices.append(note)
+            # Notes sent during setup wait until the preview is live.
+            if self._responsive and not self._showing_error:
+                self._show_live_status()
         elif event == "no_window":
             self._set_status("This program finished without opening a window.")
         elif event == "exited":

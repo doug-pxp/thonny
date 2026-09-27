@@ -20,7 +20,8 @@ The IDE is told what happened through marker lines on stdout (anything else on
 stdout is the student's own print output and is ignored):
 
     @@SSPREVIEW@@ {"event": "window"}        first Tk window created
-    @@SSPREVIEW@@ {"event": "alive"}         heartbeat: the window's event loop is running
+    @@SSPREVIEW@@ {"event": "alive", ...}    heartbeat: the event loop is running;
+                                             also carries the window's natural width/height
     @@SSPREVIEW@@ {"event": "error", ...}    exception (message + line number)
     @@SSPREVIEW@@ {"event": "no_window"}     program finished without a window
     @@SSPREVIEW@@ {"event": "notice", ...}   something worth telling the student
@@ -29,6 +30,7 @@ stdout is the student's own print output and is ignored):
 import builtins
 import json
 import os
+import re
 import sys
 import traceback
 
@@ -101,13 +103,53 @@ def _install_patches(container_id: str, display_path: str, state: dict) -> None:
 
     original_init = tkinter.Tk.__init__
 
+    original_geometry = tkinter.Wm.wm_geometry
+
+    def patched_geometry(self, newGeometry=None):
+        # The preview shows the window at its natural size (what its
+        # packed/gridded widgets ask for), so it follows the content as it
+        # changes. A fixed size from the student's own geometry("520x650") call
+        # is ignored for the previewed window; Run still honors it.
+        #
+        # Exception: turtle has no natural size. It sizes its window by calling
+        # geometry() itself, so geometry() calls made by the turtle library are
+        # applied and that size is what the preview shows.
+        if newGeometry is not None and self is state["root"]:
+            caller = sys._getframe(1).f_globals.get("__name__", "")
+            if caller == "turtle":
+                match = re.match(r"\s*(\d+)x(\d+)", str(newGeometry))
+                if match:
+                    state["library_size"] = (int(match.group(1)), int(match.group(2)))
+                return original_geometry(self, newGeometry)
+
+            if not state["geometry_noted"]:
+                state["geometry_noted"] = True
+                emit(
+                    "notice",
+                    message="The preview uses the window's natural size; "
+                    "geometry() still applies when you press Run.",
+                )
+            return ""
+        return original_geometry(self, newGeometry)
+
+    def app_size(root):
+        if state["library_size"]:
+            return state["library_size"]
+        # Natural size. Also reported correctly after geometry() calls, and it
+        # grows/shrinks as widgets or their text change.
+        try:
+            return root.winfo_reqwidth(), root.winfo_reqheight()
+        except Exception:
+            return 0, 0
+
     def start_heartbeat(root) -> None:
         # Tk timers only fire while the event loop is running, however the
         # program entered it (root.mainloop(), tk.mainloop(), turtle.done(),
         # update() during an animation...). So a steady heartbeat means the
         # window is responsive, and a missing one means the code is stuck.
         def beat():
-            emit("alive")
+            width, height = app_size(root)
+            emit("alive", width=width, height=height)
             try:
                 root.after(HEARTBEAT_MS, beat)
             except Exception:
@@ -138,6 +180,7 @@ def _install_patches(container_id: str, display_path: str, state: dict) -> None:
         _report(exc_value, display_path, when="callback")
 
     tkinter.Tk.__init__ = patched_init
+    tkinter.Wm.wm_geometry = tkinter.Wm.geometry = patched_geometry
     tkinter.Tk.report_callback_exception = report_callback_exception
 
     def preview_input(prompt=""):
@@ -163,7 +206,12 @@ def main() -> int:
     with open(source_path, encoding="utf-8") as fp:
         source = fp.read()
 
-    state = {"root": None, "input_reported": False}
+    state = {
+        "root": None,
+        "input_reported": False,
+        "geometry_noted": False,
+        "library_size": None,
+    }
     _install_patches(container_id, display_path, state)
 
     # Make the program see the same environment as a normal Run would.

@@ -4,6 +4,27 @@ Softsembly is a ProgrammingXP fork of the open-source Thonny IDE (MIT).
 Upstream history is in `CHANGELOG.rst`; this file tracks only Softsembly changes.
 The version number lives in one place: `thonny/softsembly.py` (`APP_VERSION`).
 
+## 0.8.2 — Preview always uses the natural window size
+
+- The GUI Preview now always shows the window at its natural size (what its
+  packed/gridded widgets ask for) and follows it live as content grows or
+  shrinks, e.g. a long result text widening the window.
+- A size set by the program's own `geometry("WxH")` is ignored in the preview,
+  with a note saying geometry() still applies when you press Run. Reading the
+  geometry still works.
+- Exception: turtle has no natural size and sizes its window with its own
+  geometry() calls, so those are applied and turtle previews at its usual size.
+
+## 0.8.1 — Preview size fix (Windows)
+
+- Fixed the GUI Preview squeezing apps to the panel's width on Windows (e.g. a
+  520px-wide calculator shown about 340px wide and reflowed), so it didn't
+  match the window you get from Run. Tk passes an embedded window's requested
+  size to its host frame on Linux but not on Windows. The preview now reports
+  the size itself: whatever `window.geometry("WxH")` asked for, or the window's
+  natural size if there is no geometry() call. The panel sizes the frame
+  exactly and widens once to fit, as intended.
+
 ## 0.8.0 — Live GUI Preview
 
 - New **GUI Preview** panel (View → GUI Preview; on by default, top right). It

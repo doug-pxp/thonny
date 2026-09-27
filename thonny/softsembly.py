@@ -7,7 +7,7 @@ can import it cheaply and early.
 """
 
 APP_NAME = "Softsembly"
-APP_VERSION = "0.8.0"
+APP_VERSION = "0.8.2"
 PUBLISHER = "ProgrammingXP"
 UPSTREAM_NAME = "Thonny"
 UPSTREAM_URL = "https://github.com/thonny/thonny"
